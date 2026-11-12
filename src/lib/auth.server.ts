@@ -12,19 +12,10 @@ export const auth = betterAuth({
       ...schema,
     },
   }),
-  emailAndPassword: {
-    enabled: true,
-  },
   socialProviders: {
     google: {
       clientId: serverEnv.GOOGLE_CLIENT_ID,
       clientSecret: serverEnv.GOOGLE_CLIENT_SECRET,
-    },
-  },
-  account: {
-    accountLinking: {
-      enabled: true,
-      trustedProviders: ['google'],
     },
   },
   plugins: [tanstackStartCookies()],
