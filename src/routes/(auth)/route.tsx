@@ -6,7 +6,7 @@ export const Route = createFileRoute('/(auth)')({
     const session = await getSessionFn()
     if (session?.user) {
       throw redirect({
-        to: '/',
+        to: '/dashboard',
       })
     }
     return {

@@ -23,7 +23,7 @@ export function LoginForm({
       setIsLoading(true)
       const res = await authClient.signIn.social({
         provider: 'google',
-        callbackURL: '/',
+        callbackURL: '/dashboard',
       })
       if (res.error) {
         console.error('Failed to sign in with Google:', res.error)

@@ -1,9 +1,7 @@
-import { createFileRoute, Link, useRouter } from '@tanstack/react-router'
+import { createFileRoute, Link } from '@tanstack/react-router'
 import { ModeToggle } from '#/components/common/mode-toggle'
-import { Button } from '#/components/ui/button.tsx'
-import { signOut } from '#/lib/auth-client'
+import { Button } from '#/components/ui/button'
 import { getSessionFn } from '#/server/auth.functions'
-import { useAuthStore } from '#/stores/auth-store'
 
 export const Route = createFileRoute('/')({
   beforeLoad: async () => {
@@ -17,13 +15,6 @@ export const Route = createFileRoute('/')({
 
 function Home() {
   const { session } = Route.useRouteContext()
-  const router = useRouter()
-
-  const handleSignOut = async () => {
-    await signOut()
-    useAuthStore.getState().clearAuth()
-    await router.invalidate()
-  }
 
   return (
     <div className="relative flex min-h-screen flex-col items-center justify-center p-8 text-center">
@@ -45,16 +36,8 @@ function Home() {
                 Halo, <span className="font-semibold">{session.user.name}</span>
                 !
               </p>
-              <p className="text-sm text-muted-foreground">
-                {session.user.email}
-              </p>
-              <Button
-                variant="outline"
-                size="lg"
-                onClick={handleSignOut}
-                className="cursor-pointer"
-              >
-                Keluar
+              <Button asChild size="lg" className="cursor-pointer">
+                <Link to="/dashboard">Buka Dashboard</Link>
               </Button>
             </div>
           ) : (
