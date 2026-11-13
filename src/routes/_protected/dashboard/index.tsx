@@ -2,6 +2,9 @@ import { createFileRoute } from '@tanstack/react-router'
 import { DashboardOverview } from './-components/dashboard-overview'
 
 export const Route = createFileRoute('/_protected/dashboard/')({
+  staticData: {
+    breadcrumb: 'Dashboard',
+  },
   component: DashboardPage,
 })
 
