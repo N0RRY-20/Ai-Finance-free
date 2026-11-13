@@ -1,4 +1,5 @@
 import { createFileRoute, Link, useRouter } from '@tanstack/react-router'
+import { ModeToggle } from '#/components/common/mode-toggle'
 import { Button } from '#/components/ui/button.tsx'
 import { signOut } from '#/lib/auth-client'
 import { getSessionFn } from '#/server/auth.functions'
@@ -25,7 +26,10 @@ function Home() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center p-8 text-center">
+    <div className="relative flex min-h-screen flex-col items-center justify-center p-8 text-center">
+      <div className="fixed top-4 right-4 z-50">
+        <ModeToggle />
+      </div>
       <div className="max-w-md space-y-4">
         <h1 className="text-4xl font-extrabold tracking-tight sm:text-5xl">
           AI Finance SaaS
