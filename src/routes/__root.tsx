@@ -1,7 +1,9 @@
 import { HeadContent, Scripts, createRootRoute } from '@tanstack/react-router'
 import { TanStackRouterDevtoolsPanel } from '@tanstack/react-router-devtools'
 import { TanStackDevtools } from '@tanstack/react-devtools'
+import { RootErrorComponent } from '#/components/common/route-error-fallback'
 import { ThemeProvider } from '#/components/providers/theme-provider'
+import { Toaster } from '#/components/ui/sonner'
 import { TooltipProvider } from '#/components/ui/tooltip'
 
 import appCss from '../styles.css?url'
@@ -27,6 +29,7 @@ export const Route = createRootRoute({
       },
     ],
   }),
+  errorComponent: RootErrorComponent,
   shellComponent: RootDocument,
 })
 
@@ -39,6 +42,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
       <body>
         <ThemeProvider defaultTheme="system" storageKey="theme">
           <TooltipProvider>{children}</TooltipProvider>
+          <Toaster />
         </ThemeProvider>
         <TanStackDevtools
           config={{

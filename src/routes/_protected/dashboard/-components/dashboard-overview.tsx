@@ -1,3 +1,4 @@
+import { Badge } from '#/components/ui/badge'
 import {
   Card,
   CardContent,
@@ -5,54 +6,86 @@ import {
   CardHeader,
   CardTitle,
 } from '#/components/ui/card'
+import { cn } from '#/lib/utils'
+import type { DashboardSummaryResult } from '#/types/finance'
 import { ArrowDownRight, ArrowUpRight, Wallet } from 'lucide-react'
 
-export function DashboardOverview() {
-  const cards = [
-    {
-      title: 'Total Saldo',
-      amount: 'Rp 24.500.000',
-      description: '+12% dari bulan lalu',
-      icon: Wallet,
-      color: 'text-primary',
-    },
-    {
-      title: 'Pemasukan Bulan Ini',
-      amount: 'Rp 8.200.000',
-      description: '+5% dibandingkan target',
-      icon: ArrowUpRight,
-      color: 'text-emerald-500',
-    },
-    {
-      title: 'Pengeluaran Bulan Ini',
-      amount: 'Rp 3.750.000',
-      description: '-8% dari bulan sebelumnya',
-      icon: ArrowDownRight,
-      color: 'text-rose-500',
-    },
-  ]
+interface DashboardOverviewProps {
+  summary: DashboardSummaryResult
+}
 
+export function DashboardOverview({ summary }: DashboardOverviewProps) {
   return (
     <div className="grid gap-4 md:grid-cols-3">
-      {cards.map((item) => {
-        const Icon = item.icon
-        return (
-          <Card key={item.title}>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">
-                {item.title}
-              </CardTitle>
-              <Icon className={`size-4 ${item.color}`} />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{item.amount}</div>
-              <CardDescription className="text-xs text-muted-foreground mt-1">
-                {item.description}
-              </CardDescription>
-            </CardContent>
-          </Card>
-        )
-      })}
+      <Card size="sm">
+        <CardHeader className="flex flex-row items-center justify-between gap-2">
+          <CardTitle className="text-sm font-medium">Total Saldo</CardTitle>
+          <Badge variant="outline">
+            <Wallet data-icon="inline-start" />
+            {summary.allTime.transactionCount} transaksi
+          </Badge>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-1">
+          <div
+            className={cn(
+              'text-2xl font-bold tabular-nums',
+              summary.allTime.balance < 0 && 'text-destructive',
+            )}
+          >
+            {summary.allTime.balanceFormatted}
+          </div>
+          <CardDescription className="text-xs">
+            Selisih seluruh pemasukan & pengeluaran
+          </CardDescription>
+        </CardContent>
+      </Card>
+
+      <Card size="sm">
+        <CardHeader className="flex flex-row items-center justify-between gap-2">
+          <CardTitle className="text-sm font-medium">
+            Pemasukan Bulan Ini
+          </CardTitle>
+          <Badge variant="secondary">
+            <ArrowUpRight data-icon="inline-start" />
+            Masuk
+          </Badge>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-1">
+          <div className="text-2xl font-bold tabular-nums">
+            {summary.currentMonth.totalIncomeFormatted}
+          </div>
+          <CardDescription className="text-xs">
+            Periode {summary.monthLabel} · Total{' '}
+            {summary.allTime.totalIncomeFormatted}
+          </CardDescription>
+        </CardContent>
+      </Card>
+
+      <Card size="sm">
+        <CardHeader className="flex flex-row items-center justify-between gap-2">
+          <CardTitle className="text-sm font-medium">
+            Pengeluaran Bulan Ini
+          </CardTitle>
+          <Badge variant="destructive">
+            <ArrowDownRight data-icon="inline-start" />
+            Keluar
+          </Badge>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-1">
+          <div
+            className={cn(
+              'text-2xl font-bold tabular-nums',
+              summary.currentMonth.totalExpense > 0 && 'text-destructive',
+            )}
+          >
+            {summary.currentMonth.totalExpenseFormatted}
+          </div>
+          <CardDescription className="text-xs">
+            Periode {summary.monthLabel} · Total{' '}
+            {summary.allTime.totalExpenseFormatted}
+          </CardDescription>
+        </CardContent>
+      </Card>
     </div>
   )
 }

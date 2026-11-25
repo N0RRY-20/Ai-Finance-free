@@ -1,5 +1,9 @@
 import { getRouteApi, Link } from '@tanstack/react-router'
-import { GalleryVerticalEnd, LayoutDashboard } from 'lucide-react'
+import {
+  ArrowLeftRight,
+  GalleryVerticalEnd,
+  LayoutDashboard,
+} from 'lucide-react'
 import {
   Sidebar,
   SidebarContent,
@@ -21,6 +25,11 @@ const navItems: NavItem[] = [
     title: 'Dashboard',
     to: '/dashboard',
     icon: LayoutDashboard,
+  },
+  {
+    title: 'Transaksi',
+    to: '/transactions',
+    icon: ArrowLeftRight,
   },
 ]
 
