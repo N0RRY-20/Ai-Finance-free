@@ -6,10 +6,11 @@ import {
   pgTable,
   text,
   timestamp,
+  uniqueIndex,
   uuid,
   varchar,
 } from 'drizzle-orm/pg-core'
-import type { AiUsageStatus, MessageRole } from '#/types/ai'
+import type { AiProvider, AiUsageStatus, MessageRole } from '#/types/ai'
 import { user } from './auth-schema'
 
 export const conversations = pgTable(
@@ -88,6 +89,39 @@ export const aiUsage = pgTable(
   ],
 )
 
+export const userAiKeys = pgTable(
+  'user_ai_keys',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    provider: varchar('provider', { length: 32 })
+      .$type<AiProvider>()
+      .notNull()
+      .default('gemini'),
+    encryptedApiKey: text('encrypted_api_key').notNull(),
+    keyHint: varchar('key_hint', { length: 16 }).notNull(),
+    model: varchar('model', { length: 100 })
+      .notNull()
+      .default('gemini-2.5-flash'),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex('user_ai_keys_user_provider_uidx').on(
+      table.userId,
+      table.provider,
+    ),
+    index('user_ai_keys_user_id_idx').on(table.userId),
+  ],
+)
+
 export const conversationsRelations = relations(
   conversations,
   ({ one, many }) => ({
@@ -120,5 +154,12 @@ export const aiUsageRelations = relations(aiUsage, ({ one }) => ({
   message: one(messages, {
     fields: [aiUsage.messageId],
     references: [messages.id],
+  }),
+}))
+
+export const userAiKeysRelations = relations(userAiKeys, ({ one }) => ({
+  user: one(user, {
+    fields: [userAiKeys.userId],
+    references: [user.id],
   }),
 }))
