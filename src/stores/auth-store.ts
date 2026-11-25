@@ -1,12 +1,9 @@
-import type { Session } from '#/lib/auth.server'
+import type { AuthSessionData, AuthUser, Session } from '#/types/auth'
 import { create } from 'zustand'
 
-type UserData = Session['user']
-type SessionData = Session['session']
-
 interface AuthState {
-  user: UserData | null
-  session: SessionData | null
+  user: AuthUser | null
+  session: AuthSessionData | null
   setAuth: (data: Session | null) => void
   clearAuth: () => void
 }

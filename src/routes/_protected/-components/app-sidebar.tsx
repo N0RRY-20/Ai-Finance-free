@@ -1,5 +1,5 @@
 import { getRouteApi, Link } from '@tanstack/react-router'
-import { GalleryVerticalEnd, LayoutDashboard } from 'lucide-react'
+import { GalleryVerticalEnd, LayoutDashboard, Settings } from 'lucide-react'
 import {
   Sidebar,
   SidebarContent,
@@ -21,6 +21,11 @@ const navItems: NavItem[] = [
     title: 'Dashboard',
     to: '/dashboard',
     icon: LayoutDashboard,
+  },
+  {
+    title: 'Pengaturan',
+    to: '/settings',
+    icon: Settings,
   },
 ]
 
