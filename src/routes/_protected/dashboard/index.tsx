@@ -1,7 +1,9 @@
+import { RouteErrorFallback } from '#/components/common/route-error-fallback'
 import { Button } from '#/components/ui/button'
 import { getUserAiKeyStatusFn } from '#/server/ai-key.functions'
 import { getDashboardFinanceDataFn } from '#/server/transaction.functions'
 import { createFileRoute, useRouter } from '@tanstack/react-router'
+import type { ErrorComponentProps } from '@tanstack/react-router'
 import { SparklesIcon } from 'lucide-react'
 import { useState } from 'react'
 import { DashboardOverview } from './-components/dashboard-overview'
@@ -18,8 +20,29 @@ export const Route = createFileRoute('/_protected/dashboard/')({
     ])
     return { financeData, aiKeyStatus }
   },
+  errorComponent: DashboardErrorState,
   component: DashboardPage,
 })
+
+function DashboardErrorState({ error, reset }: ErrorComponentProps) {
+  return (
+    <div className="mx-auto w-full max-w-5xl space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
+        <p className="text-muted-foreground">
+          Ringkasan kondisi keuangan Anda.
+        </p>
+      </div>
+
+      <RouteErrorFallback
+        error={error}
+        reset={reset}
+        title="Gagal memuat ringkasan dashboard"
+        description="Terjadi kendala saat mengambil ringkasan keuangan dari server. Silakan coba lagi."
+      />
+    </div>
+  )
+}
 
 function DashboardPage() {
   const { session } = Route.useRouteContext()

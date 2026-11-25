@@ -16,6 +16,7 @@ import { Route as authLoginRouteImport } from './routes/(auth)/login'
 import { Route as ApiChatRouteImport } from './routes/api/chat'
 import { Route as ProtectedDashboardIndexRouteImport } from './routes/_protected/dashboard/index'
 import { Route as ProtectedSettingsIndexRouteImport } from './routes/_protected/settings/index'
+import { Route as ProtectedTransactionsIndexRouteImport } from './routes/_protected/transactions/index'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 
 const IndexRoute = IndexRouteImport.update({
@@ -51,6 +52,12 @@ const ProtectedSettingsIndexRoute = ProtectedSettingsIndexRouteImport.update({
   path: '/settings/',
   getParentRoute: () => ProtectedRouteRoute,
 } as any)
+const ProtectedTransactionsIndexRoute =
+  ProtectedTransactionsIndexRouteImport.update({
+    id: '/transactions/',
+    path: '/transactions/',
+    getParentRoute: () => ProtectedRouteRoute,
+  } as any)
 const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   id: '/api/auth/$',
   path: '/api/auth/$',
@@ -64,6 +71,7 @@ export interface FileRoutesByFullPath {
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/dashboard/': typeof ProtectedDashboardIndexRoute
   '/settings/': typeof ProtectedSettingsIndexRoute
+  '/transactions/': typeof ProtectedTransactionsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -72,6 +80,7 @@ export interface FileRoutesByTo {
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/dashboard': typeof ProtectedDashboardIndexRoute
   '/settings': typeof ProtectedSettingsIndexRoute
+  '/transactions': typeof ProtectedTransactionsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -83,13 +92,27 @@ export interface FileRoutesById {
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/_protected/dashboard/': typeof ProtectedDashboardIndexRoute
   '/_protected/settings/': typeof ProtectedSettingsIndexRoute
+  '/_protected/transactions/': typeof ProtectedTransactionsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
-    '/' | '/login' | '/api/chat' | '/api/auth/$' | '/dashboard/' | '/settings/'
+    | '/'
+    | '/login'
+    | '/api/chat'
+    | '/api/auth/$'
+    | '/dashboard/'
+    | '/settings/'
+    | '/transactions/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/login' | '/api/chat' | '/api/auth/$' | '/dashboard' | '/settings'
+  to:
+    | '/'
+    | '/login'
+    | '/api/chat'
+    | '/api/auth/$'
+    | '/dashboard'
+    | '/settings'
+    | '/transactions'
   id:
     | '__root__'
     | '/'
@@ -100,6 +123,7 @@ export interface FileRouteTypes {
     | '/api/auth/$'
     | '/_protected/dashboard/'
     | '/_protected/settings/'
+    | '/_protected/transactions/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -161,6 +185,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProtectedSettingsIndexRouteImport
       parentRoute: typeof ProtectedRouteRoute
     }
+    '/_protected/transactions/': {
+      id: '/_protected/transactions/'
+      path: '/transactions'
+      fullPath: '/transactions/'
+      preLoaderRoute: typeof ProtectedTransactionsIndexRouteImport
+      parentRoute: typeof ProtectedRouteRoute
+    }
     '/api/auth/$': {
       id: '/api/auth/$'
       path: '/api/auth/$'
@@ -186,11 +217,13 @@ const authRouteRouteWithChildren = authRouteRoute._addFileChildren(
 interface ProtectedRouteRouteChildren {
   ProtectedDashboardIndexRoute: typeof ProtectedDashboardIndexRoute
   ProtectedSettingsIndexRoute: typeof ProtectedSettingsIndexRoute
+  ProtectedTransactionsIndexRoute: typeof ProtectedTransactionsIndexRoute
 }
 
 const ProtectedRouteRouteChildren: ProtectedRouteRouteChildren = {
   ProtectedDashboardIndexRoute: ProtectedDashboardIndexRoute,
   ProtectedSettingsIndexRoute: ProtectedSettingsIndexRoute,
+  ProtectedTransactionsIndexRoute: ProtectedTransactionsIndexRoute,
 }
 
 const ProtectedRouteRouteWithChildren = ProtectedRouteRoute._addFileChildren(

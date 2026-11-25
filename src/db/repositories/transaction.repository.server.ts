@@ -5,9 +5,42 @@ import type {
   NewTransaction,
   Transaction,
   TransactionCategoryAggregationRow,
-  TransactionDateRangeFilter,
+  TransactionSummaryFilters,
 } from '#/types/finance'
 import { and, desc, eq, gte, ilike, lte, sql } from 'drizzle-orm'
+import type { SQL } from 'drizzle-orm'
+
+function escapeLikePattern(value: string): string {
+  return value.replace(/[\\%_]/g, '\\$&')
+}
+
+function buildTransactionConditions(
+  userId: string,
+  filters?: TransactionSummaryFilters,
+): SQL[] {
+  const conditions: SQL[] = [eq(transactions.userId, userId)]
+
+  if (filters?.type) {
+    conditions.push(eq(transactions.type, filters.type))
+  }
+  if (filters?.categoryId) {
+    conditions.push(eq(transactions.categoryId, filters.categoryId))
+  }
+  if (filters?.startDate) {
+    conditions.push(gte(transactions.transactionDate, filters.startDate))
+  }
+  if (filters?.endDate) {
+    conditions.push(lte(transactions.transactionDate, filters.endDate))
+  }
+  const trimmedSearch = filters?.search?.trim()
+  if (trimmedSearch) {
+    conditions.push(
+      ilike(transactions.description, `%${escapeLikePattern(trimmedSearch)}%`),
+    )
+  }
+
+  return conditions
+}
 
 export const transactionRepository = {
   /**
@@ -39,40 +72,42 @@ export const transactionRepository = {
   },
 
   /**
-   * Mengambil daftar transaksi milik pengguna dengan filter opsional.
+   * Mengambil daftar transaksi milik pengguna dengan filter dan pagination opsional.
    */
   async findManyByUser(
     userId: string,
     filters?: ListTransactionsFilters,
   ): Promise<Transaction[]> {
-    const conditions = [eq(transactions.userId, userId)]
-
-    if (filters?.type) {
-      conditions.push(eq(transactions.type, filters.type))
-    }
-    if (filters?.categoryId) {
-      conditions.push(eq(transactions.categoryId, filters.categoryId))
-    }
-    if (filters?.startDate) {
-      conditions.push(gte(transactions.transactionDate, filters.startDate))
-    }
-    if (filters?.endDate) {
-      conditions.push(lte(transactions.transactionDate, filters.endDate))
-    }
-    if (filters?.search && filters.search.trim().length > 0) {
-      conditions.push(
-        ilike(transactions.description, `%${filters.search.trim()}%`),
-      )
-    }
-
+    const conditions = buildTransactionConditions(userId, filters)
     const limit = Math.min(Math.max(filters?.limit ?? 20, 1), 100)
+    const offset = Math.max(filters?.offset ?? 0, 0)
 
     return await db
       .select()
       .from(transactions)
       .where(and(...conditions))
-      .orderBy(desc(transactions.transactionDate), desc(transactions.createdAt))
+      .orderBy(
+        desc(transactions.transactionDate),
+        desc(transactions.createdAt),
+        desc(transactions.id),
+      )
       .limit(limit)
+      .offset(offset)
+  },
+
+  /**
+   * Menghitung jumlah transaksi milik pengguna sesuai filter aktif.
+   */
+  async countByUser(
+    userId: string,
+    filters?: TransactionSummaryFilters,
+  ): Promise<number> {
+    const rows = await db
+      .select({ count: sql<number>`COUNT(*)::int` })
+      .from(transactions)
+      .where(and(...buildTransactionConditions(userId, filters)))
+
+    return rows.at(0)?.count ?? 0
   },
 
   /**
@@ -80,17 +115,8 @@ export const transactionRepository = {
    */
   async aggregateByCategory(
     userId: string,
-    filters?: TransactionDateRangeFilter,
+    filters?: TransactionSummaryFilters,
   ): Promise<TransactionCategoryAggregationRow[]> {
-    const conditions = [eq(transactions.userId, userId)]
-
-    if (filters?.startDate) {
-      conditions.push(gte(transactions.transactionDate, filters.startDate))
-    }
-    if (filters?.endDate) {
-      conditions.push(lte(transactions.transactionDate, filters.endDate))
-    }
-
     return await db
       .select({
         type: transactions.type,
@@ -99,7 +125,7 @@ export const transactionRepository = {
         count: sql<number>`COUNT(*)::int`,
       })
       .from(transactions)
-      .where(and(...conditions))
+      .where(and(...buildTransactionConditions(userId, filters)))
       .groupBy(transactions.type, transactions.categoryId)
   },
 
