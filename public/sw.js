@@ -1,16 +1,10 @@
-const VERSION = 'ai-finance-pwa-v1'
+const VERSION = 'ai-finance-pwa-v2'
 
 const ASSET_CACHE = `static-${VERSION}`
 const NAV_CACHE = `pages-${VERSION}`
 const OFFLINE_URL = '/offline'
 
-const ASSET_PATHS = [
-  '/assets/',
-  '/_build/',
-  '/icons/',
-  '/manifest.json',
-  '/favicon.ico',
-]
+const ASSET_PATHS = ['/assets/', '/_build/', '/icons/', '/favicon.ico']
 
 /** Endpoint yang WAJIB selalu lolos ke server tanpa dicegat */
 function isServerEndpoint(pathname) {
@@ -83,7 +77,27 @@ self.addEventListener('fetch', (event) => {
     return
   }
 
-  // 2) Hashed Static Assets -> Cache-First
+  // 2) Web App Manifest -> Network-First agar pembaruan konfigurasi segera aktif
+  if (url.pathname === '/manifest.json') {
+    event.respondWith(
+      (async () => {
+        const cache = await caches.open(ASSET_CACHE)
+        try {
+          const response = await fetch(request)
+          if (response && response.ok) {
+            void cache.put(request, response.clone())
+          }
+          return response
+        } catch {
+          const cached = await cache.match(request, { ignoreSearch: true })
+          return cached ?? Response.error()
+        }
+      })(),
+    )
+    return
+  }
+
+  // 3) Hashed Static Assets -> Cache-First
   if (ASSET_PATHS.some((prefix) => url.pathname.startsWith(prefix))) {
     event.respondWith(
       (async () => {

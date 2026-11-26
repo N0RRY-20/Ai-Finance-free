@@ -2,7 +2,7 @@
   "name": "AI Finance SaaS",
   "short_name": "AI Finance",
   "description": "Platform manajemen dan analisis keuangan cerdas untuk bisnis dan personal.",
-  "start_url": "/",
+  "start_url": "/dashboard",
   "scope": "/",
   "id": "/",
   "display": "standalone",
