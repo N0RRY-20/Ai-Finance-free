@@ -19,13 +19,56 @@ export const Route = createRootRoute({
         content: 'width=device-width, initial-scale=1',
       },
       {
-        title: 'TanStack Start Starter',
+        title: 'AI Finance SaaS',
+      },
+      {
+        name: 'description',
+        content:
+          'Platform manajemen dan analisis keuangan cerdas untuk bisnis dan personal.',
+      },
+      {
+        name: 'theme-color',
+        content: '#09090b',
+      },
+      {
+        name: 'mobile-web-app-capable',
+        content: 'yes',
+      },
+      {
+        name: 'apple-mobile-web-app-capable',
+        content: 'yes',
+      },
+      {
+        name: 'apple-mobile-web-app-status-bar-style',
+        content: 'black-translucent',
+      },
+      {
+        name: 'apple-mobile-web-app-title',
+        content: 'AI Finance',
       },
     ],
     links: [
       {
         rel: 'stylesheet',
         href: appCss,
+      },
+      {
+        rel: 'manifest',
+        href: '/manifest.json',
+      },
+      {
+        rel: 'icon',
+        href: '/icons/icon.svg',
+        type: 'image/svg+xml',
+      },
+      {
+        rel: 'icon',
+        href: '/favicon.ico',
+        sizes: 'any',
+      },
+      {
+        rel: 'apple-touch-icon',
+        href: '/icons/icon-192x192.png',
       },
     ],
   }),
