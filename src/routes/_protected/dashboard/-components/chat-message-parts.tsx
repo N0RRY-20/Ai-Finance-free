@@ -1,6 +1,14 @@
 import { ChatMarkdown } from '#/components/ai/chat-markdown'
+import { Badge } from '#/components/ui/badge'
 import { Bubble, BubbleContent } from '#/components/ui/bubble'
 import { CodeBlock, CodeBlockContent } from '#/components/ui/code-block'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '#/components/ui/dialog'
 import {
   Trace,
   TraceCollapsible,
@@ -11,21 +19,33 @@ import {
   TraceLine,
   TraceTitle,
 } from '#/components/ui/trace'
+import { formatAttachmentSize } from '#/constants/chat-media'
+import type { ChatImageAttachmentMeta } from '#/types/ai'
 import type { UIMessage } from '@tanstack/ai-react'
 import type { LucideIcon } from 'lucide-react'
 import {
   BrainIcon,
+  ImageIcon,
   ListFilterIcon,
   PencilIcon,
   PieChartIcon,
   ReceiptTextIcon,
   Trash2Icon,
   WrenchIcon,
+  ZoomInIcon,
 } from 'lucide-react'
+import { useState } from 'react'
 
 type MessagePart = UIMessage['parts'][number]
 type ThinkingMessagePart = Extract<MessagePart, { type: 'thinking' }>
 type ToolCallMessagePart = Extract<MessagePart, { type: 'tool-call' }>
+
+interface LiveImageItem {
+  id: string
+  src: string
+  name: string
+  sizeBytes?: number
+}
 
 interface ToolMeta {
   icon: LucideIcon
@@ -193,6 +213,130 @@ function ToolCallTraceItem({ part }: { part: ToolCallMessagePart }) {
   )
 }
 
+function getMessageAttachments(message: UIMessage): ChatImageAttachmentMeta[] {
+  if (
+    !isRecord(message.metadata) ||
+    !Array.isArray(message.metadata.attachments)
+  ) {
+    return []
+  }
+
+  const parsed: ChatImageAttachmentMeta[] = []
+  for (const item of message.metadata.attachments) {
+    if (!isRecord(item)) continue
+    if (
+      typeof item.name !== 'string' ||
+      !item.name.trim() ||
+      typeof item.mimeType !== 'string' ||
+      typeof item.sizeBytes !== 'number' ||
+      !Number.isFinite(item.sizeBytes)
+    ) {
+      continue
+    }
+    parsed.push({
+      name: item.name,
+      mimeType: item.mimeType,
+      sizeBytes: item.sizeBytes,
+      ...(typeof item.width === 'number' && Number.isFinite(item.width)
+        ? { width: item.width }
+        : {}),
+      ...(typeof item.height === 'number' && Number.isFinite(item.height)
+        ? { height: item.height }
+        : {}),
+    })
+  }
+
+  return parsed
+}
+
+function buildLiveImages(
+  parts: UIMessage['parts'],
+  savedAttachments: ChatImageAttachmentMeta[],
+): LiveImageItem[] {
+  const images: LiveImageItem[] = []
+  let imgIndex = 0
+
+  for (const part of parts) {
+    if (part.type !== 'image') continue
+    if (part.source.type === 'file') {
+      imgIndex += 1
+      continue
+    }
+
+    const src =
+      part.source.type === 'url'
+        ? part.source.value
+        : `data:${part.source.mimeType};base64,${part.source.value}`
+    const partMeta = isRecord(part.metadata) ? part.metadata : undefined
+    const saved = savedAttachments.at(imgIndex)
+    const name =
+      typeof partMeta?.name === 'string' && partMeta.name.trim()
+        ? partMeta.name.trim()
+        : (saved?.name ?? `Lampiran ${imgIndex + 1}`)
+    const sizeBytes =
+      typeof partMeta?.sizeBytes === 'number' &&
+      Number.isFinite(partMeta.sizeBytes)
+        ? partMeta.sizeBytes
+        : saved?.sizeBytes
+
+    images.push({
+      id: `live-img-${imgIndex}`,
+      src,
+      name,
+      sizeBytes,
+    })
+    imgIndex += 1
+  }
+
+  return images
+}
+
+function LiveImageCard({
+  item,
+  onPreview,
+}: {
+  item: LiveImageItem
+  onPreview: (item: LiveImageItem) => void
+}) {
+  const [hasError, setHasError] = useState(false)
+
+  return (
+    <button
+      type="button"
+      onClick={() => onPreview(item)}
+      aria-label={`Pratinjau ${item.name}`}
+      className="group relative flex flex-col overflow-hidden rounded-2xl border bg-muted/40 text-left transition-colors hover:border-primary/50 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+    >
+      {hasError ? (
+        <div className="flex h-28 w-full flex-col items-center justify-center gap-1.5 bg-muted/60 px-3 text-muted-foreground">
+          <ImageIcon className="size-6" />
+          <span className="line-clamp-1 text-xs font-medium">{item.name}</span>
+        </div>
+      ) : (
+        <div className="relative h-32 w-full overflow-hidden bg-muted/60">
+          <img
+            src={item.src}
+            alt={item.name}
+            className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-[1.03]"
+            onError={() => setHasError(true)}
+          />
+          <span className="absolute right-2 bottom-2 flex size-6 items-center justify-center rounded-full bg-background/80 text-foreground opacity-0 shadow-xs backdrop-blur-xs transition-opacity group-hover:opacity-100">
+            <ZoomInIcon className="size-3.5" />
+          </span>
+        </div>
+      )}
+      <div className="flex items-center justify-between gap-2 px-2.5 py-1.5 text-[11px]">
+        <span className="min-w-0 flex-1 truncate font-medium">{item.name}</span>
+        {item.sizeBytes !== undefined ? (
+          <span className="shrink-0 text-muted-foreground">
+            {formatAttachmentSize(item.sizeBytes)}
+          </span>
+        ) : null}
+      </div>
+    </button>
+  )
+}
+
 export function ChatMessageParts({
   message,
   isStreaming,
@@ -200,9 +344,17 @@ export function ChatMessageParts({
   message: UIMessage
   isStreaming: boolean
 }) {
+  const [previewImage, setPreviewImage] = useState<LiveImageItem | null>(null)
   const isUser = message.role === 'user'
+  const savedAttachments = getMessageAttachments(message)
+  const liveImages = buildLiveImages(message.parts, savedAttachments)
 
-  if (message.parts.length === 0 && isStreaming && !isUser) {
+  if (
+    message.parts.length === 0 &&
+    savedAttachments.length === 0 &&
+    isStreaming &&
+    !isUser
+  ) {
     return (
       <span className="shimmer px-3.5 text-sm text-muted-foreground">
         Sedang memproses...
@@ -229,7 +381,13 @@ export function ChatMessageParts({
     }
   }
 
-  if (groups.length === 0 && isStreaming && !isUser) {
+  if (
+    groups.length === 0 &&
+    liveImages.length === 0 &&
+    savedAttachments.length === 0 &&
+    isStreaming &&
+    !isUser
+  ) {
     return (
       <span className="shimmer px-3.5 text-sm text-muted-foreground">
         Sedang memproses...
@@ -239,6 +397,49 @@ export function ChatMessageParts({
 
   return (
     <div className="flex min-w-0 flex-col gap-2">
+      {liveImages.length > 0 ? (
+        <div
+          className={
+            liveImages.length >= 2
+              ? `grid max-w-[85%] grid-cols-2 gap-2 ${isUser ? 'self-end' : 'self-start'}`
+              : `grid w-60 max-w-[85%] grid-cols-1 gap-2 ${isUser ? 'self-end' : 'self-start'}`
+          }
+        >
+          {liveImages.map((item) => (
+            <LiveImageCard
+              key={item.id}
+              item={item}
+              onPreview={setPreviewImage}
+            />
+          ))}
+        </div>
+      ) : savedAttachments.length > 0 ? (
+        <div
+          className={`flex max-w-[85%] flex-col gap-1.5 ${isUser ? 'items-end self-end' : 'items-start self-start'}`}
+        >
+          <div
+            className={`flex flex-wrap gap-1.5 ${isUser ? 'justify-end' : 'justify-start'}`}
+          >
+            {savedAttachments.map((att, index) => (
+              <Badge
+                key={`${att.name}-${index}`}
+                variant="secondary"
+                className="h-auto max-w-full gap-1.5 py-1 pr-2.5 pl-2"
+              >
+                <ImageIcon className="shrink-0" />
+                <span className="max-w-44 truncate">{att.name}</span>
+                <span className="shrink-0 text-muted-foreground">
+                  ({formatAttachmentSize(att.sizeBytes)})
+                </span>
+              </Badge>
+            ))}
+          </div>
+          <p className="text-[11px] text-muted-foreground">
+            Lampiran gambar tidak disimpan di riwayat
+          </p>
+        </div>
+      ) : null}
+
       {groups.map((group, groupIndex) => {
         if (group.kind === 'trace') {
           return (
@@ -266,11 +467,7 @@ export function ChatMessageParts({
 
         if (isUser) {
           return (
-            <Bubble
-              key={`text-${groupIndex}`}
-              variant="default"
-              align="end"
-            >
+            <Bubble key={`text-${groupIndex}`} variant="default" align="end">
               <BubbleContent className="whitespace-pre-wrap">
                 {group.content}
               </BubbleContent>
@@ -296,6 +493,35 @@ export function ChatMessageParts({
           </Bubble>
         )
       })}
+
+      <Dialog
+        open={previewImage !== null}
+        onOpenChange={(open) => {
+          if (!open) setPreviewImage(null)
+        }}
+      >
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="truncate pr-8">
+              {previewImage?.name}
+            </DialogTitle>
+            <DialogDescription>
+              {previewImage?.sizeBytes !== undefined
+                ? formatAttachmentSize(previewImage.sizeBytes)
+                : 'Lampiran gambar'}
+            </DialogDescription>
+          </DialogHeader>
+          {previewImage ? (
+            <div className="flex max-h-[75vh] items-center justify-center overflow-hidden rounded-xl bg-muted/40 p-2">
+              <img
+                src={previewImage.src}
+                alt={previewImage.name}
+                className="max-h-[70vh] w-auto rounded-lg object-contain"
+              />
+            </div>
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

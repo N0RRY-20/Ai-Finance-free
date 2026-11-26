@@ -179,7 +179,8 @@ export function FinanceChatDrawer({
         <SheetHeader className="shrink-0 border-b p-4 pr-12 sm:p-6 sm:pr-12">
           <SheetTitle>Asisten Keuangan AI</SheetTitle>
           <SheetDescription>
-            Catat, lihat, ubah, dan hapus transaksi lewat chat alami.
+            Catat, lihat, ubah, dan hapus transaksi lewat chat alami atau unggah
+            foto struk.
           </SheetDescription>
           <div className="flex items-center gap-2 pt-2">
             <DropdownMenu>

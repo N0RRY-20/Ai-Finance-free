@@ -4,6 +4,7 @@ import {
   messageRepository,
 } from '#/db/repositories'
 import type {
+  ChatImageAttachmentMeta,
   DeleteResult,
   RecordAiUsageInput,
   SerializedConversation,
@@ -70,11 +71,58 @@ export async function updateConversationTitleIfDefault(
   )
 }
 
+function parseStoredAttachments(raw: unknown): ChatImageAttachmentMeta[] {
+  if (!Array.isArray(raw)) {
+    return []
+  }
+
+  const parsed: ChatImageAttachmentMeta[] = []
+  for (const item of raw) {
+    if (typeof item !== 'object' || item === null || Array.isArray(item)) {
+      continue
+    }
+    const record = item as Record<string, unknown>
+    if (
+      typeof record.name !== 'string' ||
+      !record.name.trim() ||
+      typeof record.mimeType !== 'string' ||
+      !record.mimeType.trim() ||
+      typeof record.sizeBytes !== 'number' ||
+      !Number.isFinite(record.sizeBytes) ||
+      record.sizeBytes < 0
+    ) {
+      continue
+    }
+
+    parsed.push({
+      name: record.name,
+      mimeType: record.mimeType,
+      sizeBytes: record.sizeBytes,
+      ...(typeof record.width === 'number' &&
+      Number.isFinite(record.width) &&
+      record.width > 0
+        ? { width: record.width }
+        : {}),
+      ...(typeof record.height === 'number' &&
+      Number.isFinite(record.height) &&
+      record.height > 0
+        ? { height: record.height }
+        : {}),
+    })
+  }
+
+  return parsed
+}
+
 export async function saveUserMessageIfNew(
   conversationId: string,
   content: string,
-  clientMessageId?: string,
+  options?: {
+    clientMessageId?: string
+    attachments?: ChatImageAttachmentMeta[]
+  },
 ) {
+  const clientMessageId = options?.clientMessageId
   if (clientMessageId) {
     const existing = await messageRepository.findUserMessageByClientId(
       conversationId,
@@ -85,13 +133,21 @@ export async function saveUserMessageIfNew(
     }
   }
 
+  const parts = content ? [{ type: 'text', content }] : []
+  const attachments =
+    options?.attachments && options.attachments.length > 0
+      ? options.attachments
+      : undefined
+
+  // Hanya simpan teks dan metadata lampiran agar biner/base64 gambar tidak disimpan ke database.
   const inserted = await messageRepository.create({
     conversationId,
     role: 'user',
     content,
     metadata: {
       ...(clientMessageId ? { clientMessageId } : {}),
-      parts: [{ type: 'text', content }],
+      parts,
+      ...(attachments ? { attachments } : {}),
     },
   })
 
@@ -146,18 +202,31 @@ export async function getConversationUiMessages(
   const rows = await messageRepository.findByConversationId(conversationId)
 
   return rows.map((row) => {
-    const rawParts =
-      row.metadata &&
-      typeof row.metadata === 'object' &&
-      Array.isArray(row.metadata.parts) &&
-      row.metadata.parts.length > 0
-        ? (row.metadata.parts as UIMessage['parts'])
-        : ([{ type: 'text', content: row.content }] as UIMessage['parts'])
+    const rowMeta =
+      row.metadata && typeof row.metadata === 'object' ? row.metadata : null
+    const attachments = parseStoredAttachments(rowMeta?.attachments)
+
+    let rawParts: UIMessage['parts']
+    if (rowMeta && Array.isArray(rowMeta.parts)) {
+      const nonImageParts = (rowMeta.parts as UIMessage['parts']).filter(
+        (part) => part.type !== 'image',
+      )
+      if (nonImageParts.length > 0) {
+        rawParts = nonImageParts
+      } else if (row.content) {
+        rawParts = [{ type: 'text', content: row.content }]
+      } else {
+        rawParts = []
+      }
+    } else {
+      rawParts = row.content ? [{ type: 'text', content: row.content }] : []
+    }
 
     return {
       id: row.id,
       role: row.role,
       parts: rawParts,
+      ...(attachments.length > 0 ? { metadata: { attachments } } : {}),
       createdAt: row.createdAt,
     }
   })
