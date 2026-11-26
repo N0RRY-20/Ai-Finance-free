@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as authRouteRouteImport } from './routes/(auth)/route'
 import { Route as ProtectedRouteRouteImport } from './routes/_protected/route'
+import { Route as OfflineRouteImport } from './routes/offline'
 import { Route as authLoginRouteImport } from './routes/(auth)/login'
 import { Route as ProtectedDashboardIndexRouteImport } from './routes/_protected/dashboard/index'
 import { Route as ProtectedTransactionsIndexRouteImport } from './routes/_protected/transactions/index'
@@ -28,6 +29,11 @@ const authRouteRoute = authRouteRouteImport.update({
 } as any)
 const ProtectedRouteRoute = ProtectedRouteRouteImport.update({
   id: '/_protected',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OfflineRoute = OfflineRouteImport.update({
+  id: '/offline',
+  path: '/offline',
   getParentRoute: () => rootRouteImport,
 } as any)
 const authLoginRoute = authLoginRouteImport.update({
@@ -54,6 +60,7 @@ const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/offline': typeof OfflineRoute
   '/login': typeof authLoginRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/dashboard/': typeof ProtectedDashboardIndexRoute
@@ -61,6 +68,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/offline': typeof OfflineRoute
   '/login': typeof authLoginRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/dashboard': typeof ProtectedDashboardIndexRoute
@@ -71,6 +79,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/(auth)': typeof authRouteRouteWithChildren
   '/_protected': typeof ProtectedRouteRouteWithChildren
+  '/offline': typeof OfflineRoute
   '/(auth)/login': typeof authLoginRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/_protected/dashboard/': typeof ProtectedDashboardIndexRoute
@@ -78,14 +87,22 @@ export interface FileRoutesById {
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/login' | '/api/auth/$' | '/dashboard/' | '/transactions/'
+  fullPaths:
+    | '/'
+    | '/offline'
+    | '/login'
+    | '/api/auth/$'
+    | '/dashboard/'
+    | '/transactions/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/login' | '/api/auth/$' | '/dashboard' | '/transactions'
+  to:
+    '/' | '/offline' | '/login' | '/api/auth/$' | '/dashboard' | '/transactions'
   id:
     | '__root__'
     | '/'
     | '/(auth)'
     | '/_protected'
+    | '/offline'
     | '/(auth)/login'
     | '/api/auth/$'
     | '/_protected/dashboard/'
@@ -96,6 +113,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   authRouteRoute: typeof authRouteRouteWithChildren
   ProtectedRouteRoute: typeof ProtectedRouteRouteWithChildren
+  OfflineRoute: typeof OfflineRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
 }
 
@@ -120,6 +138,13 @@ declare module '@tanstack/react-router' {
       path: ''
       fullPath: '/'
       preLoaderRoute: typeof ProtectedRouteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/offline': {
+      id: '/offline'
+      path: '/offline'
+      fullPath: '/offline'
+      preLoaderRoute: typeof OfflineRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/(auth)/login': {
@@ -183,6 +208,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   authRouteRoute: authRouteRouteWithChildren,
   ProtectedRouteRoute: ProtectedRouteRouteWithChildren,
+  OfflineRoute: OfflineRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
 }
 export const routeTree = rootRouteImport

@@ -1,6 +1,7 @@
 import { createFileRoute, Outlet, redirect } from '@tanstack/react-router'
 import { getSessionFn } from '#/server/auth.functions'
 import { ModeToggle } from '#/components/common/mode-toggle'
+import { PwaInstallButton } from '#/components/common/pwa-install-button'
 import { Separator } from '#/components/ui/separator'
 import {
   SidebarInset,
@@ -37,7 +38,8 @@ function ProtectedLayout() {
             className="mr-2 data-vertical:h-4 data-vertical:self-center"
           />
           <AppBreadcrumb />
-          <div className="ml-auto">
+          <div className="ml-auto flex items-center gap-2">
+            <PwaInstallButton />
             <ModeToggle />
           </div>
         </header>
