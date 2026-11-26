@@ -6,6 +6,7 @@ import {
   listTransactionsPaginated,
   updateTransaction,
 } from '#/service/transaction.service.server'
+import { getDashboardFinanceOverview } from '#/services/transaction.service.server'
 import { handleServerError } from '#/utils/server-error.server'
 import {
   createTransactionInputSchema,
@@ -24,6 +25,21 @@ function requireAuthUserId(user: { id: string } | undefined): string {
   }
   return user.id
 }
+
+export const getDashboardFinanceDataFn = createServerFn({ method: 'GET' })
+  .middleware([authServerMiddleware])
+  .handler(async ({ context }) => {
+    try {
+      const userId = requireAuthUserId(context.session?.user)
+      return await getDashboardFinanceOverview(userId)
+    } catch (error) {
+      handleServerError(
+        'transactions:getDashboardFinanceDataFn',
+        error,
+        TRANSACTION_ERROR_MESSAGE,
+      )
+    }
+  })
 
 export const getDashboardSummaryFn = createServerFn({ method: 'GET' })
   .middleware([authServerMiddleware])

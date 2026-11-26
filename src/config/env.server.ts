@@ -11,6 +11,7 @@ export const serverEnv = {
   BETTER_AUTH_URL: process.env.BETTER_AUTH_URL ?? 'http://localhost:3000',
   GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID ?? '',
   GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET ?? '',
+  AI_KEY_ENCRYPTION_SECRET: process.env.AI_KEY_ENCRYPTION_SECRET ?? '',
 } as const
 
 export type ServerEnv = typeof serverEnv

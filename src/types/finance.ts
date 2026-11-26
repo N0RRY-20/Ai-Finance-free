@@ -61,6 +61,19 @@ export interface TransactionCategoryAggregationRow {
   count: number
 }
 
+export interface DashboardFinanceOverview {
+  balance: number
+  monthlyIncome: number
+  monthlyExpense: number
+  totalTransactionCount: number
+  monthlyTransactionCount: number
+  monthRange: {
+    startDate: string
+    endDate: string
+  }
+  recentTransactions: SerializedTransaction[]
+}
+
 export interface ListTransactionsFilters {
   type?: TransactionType
   categoryId?: CategoryId

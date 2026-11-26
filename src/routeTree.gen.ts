@@ -14,7 +14,9 @@ import { Route as authRouteRouteImport } from './routes/(auth)/route'
 import { Route as ProtectedRouteRouteImport } from './routes/_protected/route'
 import { Route as OfflineRouteImport } from './routes/offline'
 import { Route as authLoginRouteImport } from './routes/(auth)/login'
+import { Route as ApiChatRouteImport } from './routes/api/chat'
 import { Route as ProtectedDashboardIndexRouteImport } from './routes/_protected/dashboard/index'
+import { Route as ProtectedSettingsIndexRouteImport } from './routes/_protected/settings/index'
 import { Route as ProtectedTransactionsIndexRouteImport } from './routes/_protected/transactions/index'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 
@@ -41,9 +43,19 @@ const authLoginRoute = authLoginRouteImport.update({
   path: '/login',
   getParentRoute: () => authRouteRoute,
 } as any)
+const ApiChatRoute = ApiChatRouteImport.update({
+  id: '/api/chat',
+  path: '/api/chat',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ProtectedDashboardIndexRoute = ProtectedDashboardIndexRouteImport.update({
   id: '/dashboard/',
   path: '/dashboard/',
+  getParentRoute: () => ProtectedRouteRoute,
+} as any)
+const ProtectedSettingsIndexRoute = ProtectedSettingsIndexRouteImport.update({
+  id: '/settings/',
+  path: '/settings/',
   getParentRoute: () => ProtectedRouteRoute,
 } as any)
 const ProtectedTransactionsIndexRoute =
@@ -62,16 +74,20 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/offline': typeof OfflineRoute
   '/login': typeof authLoginRoute
+  '/api/chat': typeof ApiChatRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/dashboard/': typeof ProtectedDashboardIndexRoute
+  '/settings/': typeof ProtectedSettingsIndexRoute
   '/transactions/': typeof ProtectedTransactionsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/offline': typeof OfflineRoute
   '/login': typeof authLoginRoute
+  '/api/chat': typeof ApiChatRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/dashboard': typeof ProtectedDashboardIndexRoute
+  '/settings': typeof ProtectedSettingsIndexRoute
   '/transactions': typeof ProtectedTransactionsIndexRoute
 }
 export interface FileRoutesById {
@@ -81,8 +97,10 @@ export interface FileRoutesById {
   '/_protected': typeof ProtectedRouteRouteWithChildren
   '/offline': typeof OfflineRoute
   '/(auth)/login': typeof authLoginRoute
+  '/api/chat': typeof ApiChatRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/_protected/dashboard/': typeof ProtectedDashboardIndexRoute
+  '/_protected/settings/': typeof ProtectedSettingsIndexRoute
   '/_protected/transactions/': typeof ProtectedTransactionsIndexRoute
 }
 export interface FileRouteTypes {
@@ -91,12 +109,21 @@ export interface FileRouteTypes {
     | '/'
     | '/offline'
     | '/login'
+    | '/api/chat'
     | '/api/auth/$'
     | '/dashboard/'
+    | '/settings/'
     | '/transactions/'
   fileRoutesByTo: FileRoutesByTo
   to:
-    '/' | '/offline' | '/login' | '/api/auth/$' | '/dashboard' | '/transactions'
+    | '/'
+    | '/offline'
+    | '/login'
+    | '/api/chat'
+    | '/api/auth/$'
+    | '/dashboard'
+    | '/settings'
+    | '/transactions'
   id:
     | '__root__'
     | '/'
@@ -104,8 +131,10 @@ export interface FileRouteTypes {
     | '/_protected'
     | '/offline'
     | '/(auth)/login'
+    | '/api/chat'
     | '/api/auth/$'
     | '/_protected/dashboard/'
+    | '/_protected/settings/'
     | '/_protected/transactions/'
   fileRoutesById: FileRoutesById
 }
@@ -114,6 +143,7 @@ export interface RootRouteChildren {
   authRouteRoute: typeof authRouteRouteWithChildren
   ProtectedRouteRoute: typeof ProtectedRouteRouteWithChildren
   OfflineRoute: typeof OfflineRoute
+  ApiChatRoute: typeof ApiChatRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
 }
 
@@ -154,11 +184,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof authLoginRouteImport
       parentRoute: typeof authRouteRoute
     }
+    '/api/chat': {
+      id: '/api/chat'
+      path: '/api/chat'
+      fullPath: '/api/chat'
+      preLoaderRoute: typeof ApiChatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_protected/dashboard/': {
       id: '/_protected/dashboard/'
       path: '/dashboard'
       fullPath: '/dashboard/'
       preLoaderRoute: typeof ProtectedDashboardIndexRouteImport
+      parentRoute: typeof ProtectedRouteRoute
+    }
+    '/_protected/settings/': {
+      id: '/_protected/settings/'
+      path: '/settings'
+      fullPath: '/settings/'
+      preLoaderRoute: typeof ProtectedSettingsIndexRouteImport
       parentRoute: typeof ProtectedRouteRoute
     }
     '/_protected/transactions/': {
@@ -192,11 +236,13 @@ const authRouteRouteWithChildren = authRouteRoute._addFileChildren(
 
 interface ProtectedRouteRouteChildren {
   ProtectedDashboardIndexRoute: typeof ProtectedDashboardIndexRoute
+  ProtectedSettingsIndexRoute: typeof ProtectedSettingsIndexRoute
   ProtectedTransactionsIndexRoute: typeof ProtectedTransactionsIndexRoute
 }
 
 const ProtectedRouteRouteChildren: ProtectedRouteRouteChildren = {
   ProtectedDashboardIndexRoute: ProtectedDashboardIndexRoute,
+  ProtectedSettingsIndexRoute: ProtectedSettingsIndexRoute,
   ProtectedTransactionsIndexRoute: ProtectedTransactionsIndexRoute,
 }
 
@@ -209,6 +255,7 @@ const rootRouteChildren: RootRouteChildren = {
   authRouteRoute: authRouteRouteWithChildren,
   ProtectedRouteRoute: ProtectedRouteRouteWithChildren,
   OfflineRoute: OfflineRoute,
+  ApiChatRoute: ApiChatRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
 }
 export const routeTree = rootRouteImport

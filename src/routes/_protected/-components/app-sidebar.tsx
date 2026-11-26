@@ -3,6 +3,7 @@ import {
   ArrowLeftRight,
   GalleryVerticalEnd,
   LayoutDashboard,
+  Settings,
 } from 'lucide-react'
 import {
   Sidebar,
@@ -30,6 +31,11 @@ const navItems: NavItem[] = [
     title: 'Transaksi',
     to: '/transactions',
     icon: ArrowLeftRight,
+  },
+  {
+    title: 'Pengaturan',
+    to: '/settings',
+    icon: Settings,
   },
 ]
 
