@@ -104,7 +104,7 @@ export const userAiKeys = pgTable(
     keyHint: varchar('key_hint', { length: 16 }).notNull(),
     model: varchar('model', { length: 100 })
       .notNull()
-      .default('gemini-2.5-flash'),
+      .default('gemini-3.5-flash-lite'),
     createdAt: timestamp('created_at', { withTimezone: true })
       .defaultNow()
       .notNull(),

@@ -307,10 +307,7 @@ export const Route = createFileRoute('/api/chat')({
           ...(params.resume ? { resume: params.resume } : {}),
           systemPrompts: [buildFinanceSystemPrompt()],
           tools: [...createTransactionTools(userId)],
-          agentLoopStrategy: maxIterations(8),
-          modelOptions: {
-            temperature: 0.2,
-          },
+          agentLoopStrategy: maxIterations(4),
           middleware: [persistenceMiddleware],
           abortController,
         })
