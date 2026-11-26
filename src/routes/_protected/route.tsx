@@ -1,5 +1,7 @@
+import { useEffect } from 'react'
 import { createFileRoute, Outlet, redirect } from '@tanstack/react-router'
 import { getSessionFn } from '#/server/auth.functions'
+import { useAuthStore } from '#/stores/auth-store'
 import { ModeToggle } from '#/components/common/mode-toggle'
 import { Separator } from '#/components/ui/separator'
 import {
@@ -12,8 +14,20 @@ import { AppSidebar } from './-components/app-sidebar'
 
 export const Route = createFileRoute('/_protected')({
   beforeLoad: async () => {
+    if (typeof window !== 'undefined') {
+      const cachedSession = useAuthStore.getState().getValidSession()
+      if (cachedSession) {
+        return {
+          session: cachedSession,
+        }
+      }
+    }
+
     const session = await getSessionFn()
     if (!session?.user) {
+      if (typeof window !== 'undefined') {
+        useAuthStore.getState().clearAuth()
+      }
       throw redirect({
         to: '/login',
       })
@@ -26,6 +40,18 @@ export const Route = createFileRoute('/_protected')({
 })
 
 function ProtectedLayout() {
+  const { session } = Route.useRouteContext()
+
+  useEffect(() => {
+    const current = useAuthStore.getState()
+    if (
+      current.session?.id !== session.session.id ||
+      current.user?.id !== session.user.id
+    ) {
+      current.setAuth(session)
+    }
+  }, [session])
+
   return (
     <SidebarProvider className="h-svh overflow-hidden">
       <AppSidebar />

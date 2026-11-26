@@ -34,6 +34,7 @@ export function NavUser({ user }: NavUserProps) {
   const handleSignOut = async () => {
     await signOut()
     useAuthStore.getState().clearAuth()
+    router.clearCache()
     await router.navigate({ to: '/login' })
   }
 

@@ -1,12 +1,13 @@
 import { authServerMiddleware } from '#/middleware/auth.middleware'
+import { getUserAiKeyStatus } from '#/services/ai-key.service.server'
 import {
   createTransaction,
   deleteTransaction,
+  getDashboardFinanceOverview,
   getDashboardSummary,
   listTransactionsPaginated,
   updateTransaction,
-} from '#/service/transaction.service.server'
-import { getDashboardFinanceOverview } from '#/services/transaction.service.server'
+} from '#/services/transaction.service.server'
 import { handleServerError } from '#/utils/server-error.server'
 import {
   createTransactionInputSchema,
@@ -25,6 +26,25 @@ function requireAuthUserId(user: { id: string } | undefined): string {
   }
   return user.id
 }
+
+export const getDashboardPageDataFn = createServerFn({ method: 'GET' })
+  .middleware([authServerMiddleware])
+  .handler(async ({ context }) => {
+    try {
+      const userId = requireAuthUserId(context.session?.user)
+      const [financeData, aiKeyStatus] = await Promise.all([
+        getDashboardFinanceOverview(userId),
+        getUserAiKeyStatus(userId, 'gemini'),
+      ])
+      return { financeData, aiKeyStatus }
+    } catch (error) {
+      handleServerError(
+        'transactions:getDashboardPageDataFn',
+        error,
+        TRANSACTION_ERROR_MESSAGE,
+      )
+    }
+  })
 
 export const getDashboardFinanceDataFn = createServerFn({ method: 'GET' })
   .middleware([authServerMiddleware])

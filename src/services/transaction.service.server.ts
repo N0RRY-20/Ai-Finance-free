@@ -2,18 +2,31 @@ import { getCategoryById } from '#/constants/categories'
 import { transactionRepository } from '#/db/repositories'
 import type {
   DashboardFinanceOverview,
+  DashboardSummaryResult,
   ListTransactionsFilters,
+  PaginatedTransactionsResult,
   SerializedTransaction,
   Transaction,
   TransactionCategorySummary,
-  TransactionDateRangeFilter,
   TransactionMutationResult,
+  TransactionsPageQuery,
+  TransactionSummaryFilters,
   TransactionSummaryResult,
+  TransactionSummaryTotals,
   UpdateTransactionPatch,
 } from '#/types/finance'
-import { formatIdr } from '#/utils/format'
 import { getCurrentWibMonthRange } from '#/utils/date'
+import { formatIdr } from '#/utils/format'
 import { createTransactionInputSchema } from '#/validations/transaction.validation'
+
+function formatWibMonthLabel(startDate: string): string {
+  const [yearStr, monthStr] = startDate.split('-')
+  return new Intl.DateTimeFormat('id-ID', {
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'UTC',
+  }).format(new Date(Date.UTC(Number(yearStr), Number(monthStr) - 1, 1)))
+}
 
 function serializeTransaction(row: Transaction): SerializedTransaction {
   const amount = Number(row.amount)
@@ -28,6 +41,26 @@ function serializeTransaction(row: Transaction): SerializedTransaction {
     transactionDate: row.transactionDate,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
+  }
+}
+
+function buildSummaryTotals(
+  incomeRaw: string,
+  expenseRaw: string,
+  transactionCount: number,
+): TransactionSummaryTotals {
+  const totalIncome = Number(incomeRaw)
+  const totalExpense = Number(expenseRaw)
+  const balance = totalIncome - totalExpense
+
+  return {
+    totalIncome,
+    totalIncomeFormatted: formatIdr(totalIncome),
+    totalExpense,
+    totalExpenseFormatted: formatIdr(totalExpense),
+    balance,
+    balanceFormatted: formatIdr(balance),
+    transactionCount,
   }
 }
 
@@ -68,7 +101,7 @@ export async function listTransactions(
 
 export async function getTransactionSummary(
   userId: string,
-  filters?: TransactionDateRangeFilter,
+  filters?: TransactionSummaryFilters,
 ): Promise<TransactionSummaryResult> {
   const grouped = await transactionRepository.aggregateByCategory(
     userId,
@@ -111,6 +144,80 @@ export async function getTransactionSummary(
     balanceFormatted: formatIdr(balance),
     transactionCount,
     byCategory,
+  }
+}
+
+export async function getDashboardSummary(
+  userId: string,
+): Promise<DashboardSummaryResult> {
+  const currentMonthRange = getCurrentWibMonthRange()
+  const aggregated = await transactionRepository.aggregateDashboardOverview(
+    userId,
+    currentMonthRange,
+  )
+
+  return {
+    monthLabel: formatWibMonthLabel(currentMonthRange.startDate),
+    allTime: buildSummaryTotals(
+      aggregated.allTimeIncome,
+      aggregated.allTimeExpense,
+      aggregated.totalTransactionCount,
+    ),
+    currentMonth: buildSummaryTotals(
+      aggregated.monthlyIncome,
+      aggregated.monthlyExpense,
+      aggregated.monthlyTransactionCount,
+    ),
+  }
+}
+
+export async function listTransactionsPaginated(
+  userId: string,
+  query: TransactionsPageQuery,
+): Promise<PaginatedTransactionsResult> {
+  const filters: TransactionSummaryFilters = {
+    type: query.type,
+    categoryId: query.categoryId,
+    startDate: query.startDate,
+    endDate: query.endDate,
+    search: query.search,
+  }
+
+  const requestedPage = Math.max(1, query.page)
+  const requestedOffset = (requestedPage - 1) * query.pageSize
+
+  const [totalItems, initialRows] = await Promise.all([
+    transactionRepository.countByUser(userId, filters),
+    transactionRepository.findManyByUser(userId, {
+      ...filters,
+      limit: query.pageSize,
+      offset: requestedOffset,
+    }),
+  ])
+
+  const totalPages = Math.max(1, Math.ceil(totalItems / query.pageSize))
+  const safePage = Math.min(requestedPage, totalPages)
+
+  let rows = initialRows
+  if (totalItems === 0) {
+    rows = []
+  } else if (safePage !== requestedPage) {
+    const safeOffset = (safePage - 1) * query.pageSize
+    rows = await transactionRepository.findManyByUser(userId, {
+      ...filters,
+      limit: query.pageSize,
+      offset: safeOffset,
+    })
+  }
+
+  return {
+    items: rows.map(serializeTransaction),
+    pagination: {
+      page: safePage,
+      pageSize: query.pageSize,
+      totalItems,
+      totalPages,
+    },
   }
 }
 
@@ -199,18 +306,20 @@ export async function getDashboardFinanceOverview(
 ): Promise<DashboardFinanceOverview> {
   const monthRange = getCurrentWibMonthRange()
 
-  const [allTime, monthly, recentTransactions] = await Promise.all([
-    getTransactionSummary(userId),
-    getTransactionSummary(userId, monthRange),
+  const [aggregated, recentTransactions] = await Promise.all([
+    transactionRepository.aggregateDashboardOverview(userId, monthRange),
     listTransactions(userId, { limit: 10 }),
   ])
 
+  const allTimeIncome = Number(aggregated.allTimeIncome)
+  const allTimeExpense = Number(aggregated.allTimeExpense)
+
   return {
-    balance: allTime.balance,
-    monthlyIncome: monthly.totalIncome,
-    monthlyExpense: monthly.totalExpense,
-    totalTransactionCount: allTime.transactionCount,
-    monthlyTransactionCount: monthly.transactionCount,
+    balance: allTimeIncome - allTimeExpense,
+    monthlyIncome: Number(aggregated.monthlyIncome),
+    monthlyExpense: Number(aggregated.monthlyExpense),
+    totalTransactionCount: aggregated.totalTransactionCount,
+    monthlyTransactionCount: aggregated.monthlyTransactionCount,
     monthRange,
     recentTransactions,
   }

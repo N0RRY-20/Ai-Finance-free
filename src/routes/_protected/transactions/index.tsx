@@ -1,6 +1,7 @@
 import * as React from 'react'
 import { RouteErrorFallback } from '#/components/common/route-error-fallback'
 import { Button } from '#/components/ui/button'
+import { runProtectedLoader } from '#/lib/protected-loader'
 import { getTransactionsPageDataFn } from '#/server/transaction.functions'
 import type {
   SerializedTransaction,
@@ -19,6 +20,7 @@ import { DeleteTransactionDialog } from './-components/delete-transaction-dialog
 import { TransactionFilters } from './-components/transaction-filters'
 import { TransactionFormDialog } from './-components/transaction-form-dialog'
 import { TransactionTable } from './-components/transaction-table'
+import { TransactionsPendingState } from './-components/transactions-skeleton'
 
 export const Route = createFileRoute('/_protected/transactions/')({
   staticData: {
@@ -27,9 +29,9 @@ export const Route = createFileRoute('/_protected/transactions/')({
   validateSearch: (search: Record<string, unknown>) =>
     transactionsSearchSchema.parse(search),
   loaderDeps: ({ search }) => search,
-  loader: async ({ deps }) => {
-    return await getTransactionsPageDataFn({ data: deps })
-  },
+  loader: async ({ deps }) =>
+    await runProtectedLoader(() => getTransactionsPageDataFn({ data: deps })),
+  pendingComponent: TransactionsPendingState,
   errorComponent: TransactionsErrorState,
   component: TransactionsPage,
 })

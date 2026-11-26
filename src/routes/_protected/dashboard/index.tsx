@@ -1,25 +1,28 @@
 import { RouteErrorFallback } from '#/components/common/route-error-fallback'
 import { Button } from '#/components/ui/button'
-import { getUserAiKeyStatusFn } from '#/server/ai-key.functions'
-import { getDashboardFinanceDataFn } from '#/server/transaction.functions'
+import { runProtectedLoader } from '#/lib/protected-loader'
+import { getDashboardPageDataFn } from '#/server/transaction.functions'
 import { createFileRoute, useRouter } from '@tanstack/react-router'
 import type { ErrorComponentProps } from '@tanstack/react-router'
 import { SparklesIcon } from 'lucide-react'
-import { useState } from 'react'
+import { lazy, Suspense, useState } from 'react'
 import { DashboardOverview } from './-components/dashboard-overview'
-import { FinanceChatDrawer } from './-components/finance-chat-drawer'
+import {
+  ChatDrawerLoadingFallback,
+  DashboardPendingState,
+} from './-components/dashboard-skeleton'
+
+const LazyFinanceChatDrawer = lazy(async () => {
+  const mod = await import('./-components/finance-chat-drawer')
+  return { default: mod.FinanceChatDrawer }
+})
 
 export const Route = createFileRoute('/_protected/dashboard/')({
   staticData: {
     breadcrumb: 'Dashboard',
   },
-  loader: async () => {
-    const [financeData, aiKeyStatus] = await Promise.all([
-      getDashboardFinanceDataFn(),
-      getUserAiKeyStatusFn(),
-    ])
-    return { financeData, aiKeyStatus }
-  },
+  loader: async () => await runProtectedLoader(() => getDashboardPageDataFn()),
+  pendingComponent: DashboardPendingState,
   errorComponent: DashboardErrorState,
   component: DashboardPage,
 })
@@ -49,6 +52,12 @@ function DashboardPage() {
   const { financeData, aiKeyStatus } = Route.useLoaderData()
   const router = useRouter()
   const [isChatOpen, setIsChatOpen] = useState(false)
+  const [hasOpenedChat, setHasOpenedChat] = useState(false)
+
+  const handleOpenChat = () => {
+    setHasOpenedChat(true)
+    setIsChatOpen(true)
+  }
 
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
@@ -59,25 +68,33 @@ function DashboardPage() {
             Selamat datang kembali, {session.user.name}.
           </p>
         </div>
-        <Button onClick={() => setIsChatOpen(true)}>
+        <Button onClick={handleOpenChat}>
           <SparklesIcon data-icon="inline-start" />
           Asisten AI
         </Button>
       </div>
 
-      <DashboardOverview
-        data={financeData}
-        onOpenChat={() => setIsChatOpen(true)}
-      />
+      <DashboardOverview data={financeData} onOpenChat={handleOpenChat} />
 
-      <FinanceChatDrawer
-        open={isChatOpen}
-        onOpenChange={setIsChatOpen}
-        userName={session.user.name}
-        userImage={session.user.image}
-        initialAiKeyStatus={aiKeyStatus}
-        onTransactionMutated={() => void router.invalidate()}
-      />
+      {hasOpenedChat ? (
+        <Suspense
+          fallback={
+            <ChatDrawerLoadingFallback
+              open={isChatOpen}
+              onOpenChange={setIsChatOpen}
+            />
+          }
+        >
+          <LazyFinanceChatDrawer
+            open={isChatOpen}
+            onOpenChange={setIsChatOpen}
+            userName={session.user.name}
+            userImage={session.user.image}
+            initialAiKeyStatus={aiKeyStatus}
+            onTransactionMutated={() => void router.invalidate()}
+          />
+        </Suspense>
+      ) : null}
     </div>
   )
 }

@@ -1,4 +1,10 @@
-import { createFileRoute, Outlet, redirect } from '@tanstack/react-router'
+import { useEffect } from 'react'
+import {
+  createFileRoute,
+  Outlet,
+  redirect,
+  useRouter,
+} from '@tanstack/react-router'
 import { getSessionFn } from '#/server/auth.functions'
 
 export const Route = createFileRoute('/(auth)')({
@@ -17,5 +23,11 @@ export const Route = createFileRoute('/(auth)')({
 })
 
 function AuthLayout() {
+  const router = useRouter()
+
+  useEffect(() => {
+    router.clearCache()
+  }, [router])
+
   return <Outlet />
 }

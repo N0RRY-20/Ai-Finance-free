@@ -12,6 +12,13 @@ export const auth = betterAuth({
       ...schema,
     },
   }),
+  session: {
+    cookieCache: {
+      enabled: true,
+      maxAge: 5 * 60,
+      strategy: 'compact',
+    },
+  },
   socialProviders: {
     google: {
       clientId: serverEnv.GOOGLE_CLIENT_ID,

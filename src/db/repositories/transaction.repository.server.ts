@@ -130,6 +130,43 @@ export const transactionRepository = {
   },
 
   /**
+   * Mengagregasi ringkasan all-time dan bulan berjalan sekaligus dalam satu query SQL.
+   */
+  async aggregateDashboardOverview(
+    userId: string,
+    monthRange: { startDate: string; endDate: string },
+  ): Promise<{
+    allTimeIncome: string
+    allTimeExpense: string
+    totalTransactionCount: number
+    monthlyIncome: string
+    monthlyExpense: string
+    monthlyTransactionCount: number
+  }> {
+    const rows = await db
+      .select({
+        allTimeIncome: sql<string>`COALESCE(SUM(${transactions.amount}) FILTER (WHERE ${transactions.type} = 'income'), 0)`,
+        allTimeExpense: sql<string>`COALESCE(SUM(${transactions.amount}) FILTER (WHERE ${transactions.type} = 'expense'), 0)`,
+        totalTransactionCount: sql<number>`COUNT(*)::int`,
+        monthlyIncome: sql<string>`COALESCE(SUM(${transactions.amount}) FILTER (WHERE ${transactions.type} = 'income' AND ${transactions.transactionDate} >= ${monthRange.startDate} AND ${transactions.transactionDate} <= ${monthRange.endDate}), 0)`,
+        monthlyExpense: sql<string>`COALESCE(SUM(${transactions.amount}) FILTER (WHERE ${transactions.type} = 'expense' AND ${transactions.transactionDate} >= ${monthRange.startDate} AND ${transactions.transactionDate} <= ${monthRange.endDate}), 0)`,
+        monthlyTransactionCount: sql<number>`COUNT(*) FILTER (WHERE ${transactions.transactionDate} >= ${monthRange.startDate} AND ${transactions.transactionDate} <= ${monthRange.endDate})::int`,
+      })
+      .from(transactions)
+      .where(eq(transactions.userId, userId))
+
+    const row = rows.at(0)
+    return {
+      allTimeIncome: row?.allTimeIncome ?? '0',
+      allTimeExpense: row?.allTimeExpense ?? '0',
+      totalTransactionCount: row?.totalTransactionCount ?? 0,
+      monthlyIncome: row?.monthlyIncome ?? '0',
+      monthlyExpense: row?.monthlyExpense ?? '0',
+      monthlyTransactionCount: row?.monthlyTransactionCount ?? 0,
+    }
+  },
+
+  /**
    * Memperbarui transaksi milik pengguna berdasarkan ID transaksi.
    */
   async updateByIdForUser(

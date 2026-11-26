@@ -1,8 +1,10 @@
+import { useEffect } from 'react'
 import { useRouter } from '@tanstack/react-router'
 import type { ErrorComponentProps } from '@tanstack/react-router'
 import { AlertCircle, RefreshCw } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
 import { Button } from '#/components/ui/button'
+import { isUnauthorizedError, useAuthStore } from '#/stores/auth-store'
 
 interface RouteErrorFallbackProps {
   error: ErrorComponentProps['error']
@@ -24,6 +26,22 @@ export function RouteErrorFallback({
   className,
 }: RouteErrorFallbackProps) {
   const router = useRouter()
+  const isUnauthorized = isUnauthorizedError(error)
+
+  useEffect(() => {
+    if (!isUnauthorized) return
+    useAuthStore.getState().clearAuth()
+    router.clearCache()
+    void router.navigate({ to: '/login', replace: true })
+  }, [isUnauthorized, router])
+
+  if (isUnauthorized) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        Sesi berakhir, mengalihkan ke halaman login...
+      </p>
+    )
+  }
 
   const handleRetry = () => {
     reset()

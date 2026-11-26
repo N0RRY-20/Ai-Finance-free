@@ -7,17 +7,20 @@ import {
   CardHeader,
   CardTitle,
 } from '#/components/ui/card'
+import { runProtectedLoader } from '#/lib/protected-loader'
 import { getUserAiKeyStatusFn } from '#/server/ai-key.functions'
 import type { UserAiKeyStatus } from '#/types/ai'
 import { createFileRoute, useRouter } from '@tanstack/react-router'
 import { ShieldCheckIcon } from 'lucide-react'
 import { useEffect, useState } from 'react'
+import { SettingsPendingState } from './-components/settings-skeleton'
 
 export const Route = createFileRoute('/_protected/settings/')({
   staticData: {
     breadcrumb: 'Pengaturan',
   },
-  loader: async () => await getUserAiKeyStatusFn(),
+  loader: async () => await runProtectedLoader(() => getUserAiKeyStatusFn()),
+  pendingComponent: SettingsPendingState,
   component: SettingsPage,
 })
 
