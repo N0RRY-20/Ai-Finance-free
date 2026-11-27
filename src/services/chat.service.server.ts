@@ -1,10 +1,11 @@
+import { getChatAttachmentKind } from '#/constants/chat-media'
 import {
   aiUsageRepository,
   conversationRepository,
   messageRepository,
 } from '#/db/repositories'
 import type {
-  ChatImageAttachmentMeta,
+  ChatAttachmentMeta,
   DeleteResult,
   RecordAiUsageInput,
   SerializedConversation,
@@ -71,12 +72,12 @@ export async function updateConversationTitleIfDefault(
   )
 }
 
-function parseStoredAttachments(raw: unknown): ChatImageAttachmentMeta[] {
+function parseStoredAttachments(raw: unknown): ChatAttachmentMeta[] {
   if (!Array.isArray(raw)) {
     return []
   }
 
-  const parsed: ChatImageAttachmentMeta[] = []
+  const parsed: ChatAttachmentMeta[] = []
   for (const item of raw) {
     if (typeof item !== 'object' || item === null || Array.isArray(item)) {
       continue
@@ -94,7 +95,28 @@ function parseStoredAttachments(raw: unknown): ChatImageAttachmentMeta[] {
       continue
     }
 
+    const kind = getChatAttachmentKind({
+      kind: record.kind,
+      mimeType: record.mimeType,
+    })
+
+    if (kind === 'audio') {
+      parsed.push({
+        kind: 'audio',
+        name: record.name,
+        mimeType: record.mimeType,
+        sizeBytes: record.sizeBytes,
+        ...(typeof record.durationMs === 'number' &&
+        Number.isFinite(record.durationMs) &&
+        record.durationMs > 0
+          ? { durationMs: record.durationMs }
+          : {}),
+      })
+      continue
+    }
+
     parsed.push({
+      kind: 'image',
       name: record.name,
       mimeType: record.mimeType,
       sizeBytes: record.sizeBytes,
@@ -119,7 +141,7 @@ export async function saveUserMessageIfNew(
   content: string,
   options?: {
     clientMessageId?: string
-    attachments?: ChatImageAttachmentMeta[]
+    attachments?: ChatAttachmentMeta[]
   },
 ) {
   const clientMessageId = options?.clientMessageId
@@ -139,7 +161,7 @@ export async function saveUserMessageIfNew(
       ? options.attachments
       : undefined
 
-  // Hanya simpan teks dan metadata lampiran agar biner/base64 gambar tidak disimpan ke database.
+  // Hanya simpan teks dan metadata lampiran agar biner/base64 media (gambar/audio) tidak disimpan ke database.
   const inserted = await messageRepository.create({
     conversationId,
     role: 'user',
@@ -208,11 +230,11 @@ export async function getConversationUiMessages(
 
     let rawParts: UIMessage['parts']
     if (rowMeta && Array.isArray(rowMeta.parts)) {
-      const nonImageParts = (rowMeta.parts as UIMessage['parts']).filter(
-        (part) => part.type !== 'image',
+      const nonMediaParts = (rowMeta.parts as UIMessage['parts']).filter(
+        (part) => part.type !== 'image' && part.type !== 'audio',
       )
-      if (nonImageParts.length > 0) {
-        rawParts = nonImageParts
+      if (nonMediaParts.length > 0) {
+        rawParts = nonMediaParts
       } else if (row.content) {
         rawParts = [{ type: 'text', content: row.content }]
       } else {

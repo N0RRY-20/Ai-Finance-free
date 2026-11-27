@@ -31,11 +31,21 @@ import {
 } from '#/components/ui/message-scroller'
 import {
   CHAT_IMAGE_ACCEPT,
+  MAX_AUDIO_DURATION_MS,
   MAX_CHAT_IMAGES_PER_MESSAGE,
   MAX_TOTAL_IMAGES_BYTES,
+  MAX_TOTAL_MEDIA_BYTES,
   formatAttachmentSize,
+  formatAudioDuration,
 } from '#/constants/chat-media'
-import type { ChatImageAttachmentMeta } from '#/types/ai'
+import type { ChatAttachmentMeta } from '#/types/ai'
+import type { PreparedChatAudio } from '#/utils/chat-audio'
+import {
+  getAudioRecorderErrorMessage,
+  pickPreferredRecordingMimeType,
+  prepareRecordedChatAudio,
+  revokeChatAudioPreviewUrl,
+} from '#/utils/chat-audio'
 import type { PreparedChatImage } from '#/utils/chat-image'
 import {
   extractImageFilesFromClipboard,
@@ -44,7 +54,11 @@ import {
 import { getInitials } from '#/utils/string'
 import type { ContentPart } from '@tanstack/ai'
 import type { UIMessage } from '@tanstack/ai-react'
-import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
+import {
+  fetchServerSentEvents,
+  useAudioRecorder,
+  useChat,
+} from '@tanstack/ai-react'
 import {
   AlertCircleIcon,
   BotIcon,
@@ -52,11 +66,13 @@ import {
   ImageIcon,
   ImagePlusIcon,
   Loader2Icon,
+  MicIcon,
+  RotateCcwIcon,
   SendHorizontalIcon,
   SquareIcon,
   XIcon,
 } from 'lucide-react'
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { toast } from 'sonner'
 import { ChatMessageParts } from './chat-message-parts'
 
@@ -72,6 +88,8 @@ const QUICK_PROMPTS = [
   'Ringkasan pengeluaran bulan ini',
   'Lihat transaksi terbaru',
 ] as const
+
+const subscribeNoop = () => () => {}
 
 interface FinanceChatThreadProps {
   conversationId: string
@@ -105,15 +123,49 @@ export function FinanceChatThread({
   onConversationActivity,
   onTransactionMutated,
 }: FinanceChatThreadProps) {
+  const isClientMounted = useSyncExternalStore(
+    subscribeNoop,
+    () => true,
+    () => false,
+  )
   const [input, setInput] = useState('')
   const [attachedImages, setAttachedImages] = useState<PreparedChatImage[]>([])
+  const [attachedAudio, setAttachedAudio] = useState<PreparedChatAudio | null>(
+    null,
+  )
   const [isPreparingImages, setIsPreparingImages] = useState(false)
+  const [isFinalizingAudio, setIsFinalizingAudio] = useState(false)
+  const [recordingElapsedMs, setRecordingElapsedMs] = useState(0)
   const [isDragOver, setIsDragOver] = useState(false)
   const [failedPreviewIds, setFailedPreviewIds] = useState<
     Record<string, boolean>
   >({})
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const cameraInputRef = useRef<HTMLInputElement | null>(null)
+  const attachedAudioUrlRef = useRef<string | null>(null)
+  const pendingRecorderActionRef = useRef(false)
+  const isStoppingAudioRef = useRef(false)
+  const attachedImagesBytesRef = useRef(0)
+  const autoStopActionRef = useRef<() => void>(() => {})
+
+  const {
+    isRecording,
+    isSupported: isRecorderSupported,
+    start: startRecorder,
+    stop: stopRecorder,
+    cancel: cancelRecorder,
+  } = useAudioRecorder({
+    mimeType: pickPreferredRecordingMimeType(),
+    onError: (err) => {
+      if (pendingRecorderActionRef.current) return
+      const msg = getAudioRecorderErrorMessage(err)
+      if (msg) {
+        toast.error(msg)
+      }
+    },
+  })
+
+  const canRecordAudio = isClientMounted && isRecorderSupported
 
   const { messages, sendMessage, isLoading, error, stop } = useChat({
     connection: fetchServerSentEvents('/api/chat'),
@@ -129,8 +181,157 @@ export function FinanceChatThread({
     },
   })
 
+  useEffect(() => {
+    return () => {
+      revokeChatAudioPreviewUrl(attachedAudioUrlRef.current)
+    }
+  }, [])
+
+  useEffect(() => {
+    attachedImagesBytesRef.current = attachedImages.reduce(
+      (sum, img) => sum + img.sizeBytes,
+      0,
+    )
+  }, [attachedImages])
+
+  const clearAttachedAudio = () => {
+    revokeChatAudioPreviewUrl(attachedAudioUrlRef.current)
+    attachedAudioUrlRef.current = null
+    setAttachedAudio(null)
+  }
+
+  const handleStopRecording = async (options?: { autoStopped?: boolean }) => {
+    if (!isRecording || isStoppingAudioRef.current) return
+
+    isStoppingAudioRef.current = true
+    pendingRecorderActionRef.current = true
+    setIsFinalizingAudio(true)
+    try {
+      const recorded = await stopRecorder()
+      const prepared = prepareRecordedChatAudio(recorded)
+
+      if (
+        attachedImagesBytesRef.current + prepared.sizeBytes >
+        MAX_TOTAL_MEDIA_BYTES
+      ) {
+        revokeChatAudioPreviewUrl(prepared.previewUrl)
+        toast.error(
+          `Total ukuran lampiran melebihi batas ${formatAttachmentSize(MAX_TOTAL_MEDIA_BYTES)}.`,
+        )
+        return
+      }
+
+      revokeChatAudioPreviewUrl(attachedAudioUrlRef.current)
+      attachedAudioUrlRef.current = prepared.previewUrl
+      setAttachedAudio(prepared)
+
+      if (options?.autoStopped) {
+        toast.info(
+          'Batas durasi rekaman 2 menit tercapai. Rekaman siap ditinjau.',
+        )
+      }
+    } catch (err) {
+      const msg = getAudioRecorderErrorMessage(err)
+      if (msg) {
+        toast.error(msg)
+      }
+    } finally {
+      isStoppingAudioRef.current = false
+      pendingRecorderActionRef.current = false
+      setIsFinalizingAudio(false)
+    }
+  }
+
+  useEffect(() => {
+    autoStopActionRef.current = () => {
+      void handleStopRecording({ autoStopped: true })
+    }
+  })
+
+  useEffect(() => {
+    if (!isRecording) {
+      setRecordingElapsedMs(0)
+      return
+    }
+
+    const startedAt = Date.now()
+    setRecordingElapsedMs(0)
+
+    const timer = window.setInterval(() => {
+      const elapsed = Date.now() - startedAt
+      if (elapsed >= MAX_AUDIO_DURATION_MS) {
+        setRecordingElapsedMs(MAX_AUDIO_DURATION_MS)
+        window.clearInterval(timer)
+        autoStopActionRef.current()
+        return
+      }
+      setRecordingElapsedMs(elapsed)
+    }, 250)
+
+    return () => {
+      window.clearInterval(timer)
+      setRecordingElapsedMs(0)
+    }
+  }, [isRecording])
+
+  const beginRecording = async () => {
+    if (
+      !canRecordAudio ||
+      isLoading ||
+      isPreparingImages ||
+      isFinalizingAudio ||
+      isRecording
+    ) {
+      return
+    }
+
+    pendingRecorderActionRef.current = true
+    try {
+      await startRecorder()
+    } catch (err) {
+      const msg = getAudioRecorderErrorMessage(err)
+      if (msg) {
+        toast.error(msg)
+      }
+    } finally {
+      pendingRecorderActionRef.current = false
+    }
+  }
+
+  const handleStartRecording = async () => {
+    if (attachedAudio !== null) return
+    await beginRecording()
+  }
+
+  const handleReRecordAudio = async () => {
+    if (
+      !canRecordAudio ||
+      isLoading ||
+      isPreparingImages ||
+      isFinalizingAudio ||
+      isRecording
+    ) {
+      return
+    }
+    clearAttachedAudio()
+    await beginRecording()
+  }
+
+  const handleCancelRecording = () => {
+    if (!isRecording) return
+    cancelRecorder()
+  }
+
   const handleAddFiles = async (files: File[]) => {
-    if (files.length === 0 || isLoading || isPreparingImages) return
+    if (
+      files.length === 0 ||
+      isLoading ||
+      isPreparingImages ||
+      isRecording ||
+      isFinalizingAudio
+    ) {
+      return
+    }
 
     const remaining = MAX_CHAT_IMAGES_PER_MESSAGE - attachedImages.length
     if (remaining <= 0) {
@@ -154,6 +355,7 @@ export function FinanceChatThread({
         (sum, img) => sum + img.sizeBytes,
         0,
       )
+      const audioBytes = attachedAudio?.sizeBytes ?? 0
       const preparedList: PreparedChatImage[] = []
 
       for (const file of filesToProcess) {
@@ -162,6 +364,15 @@ export function FinanceChatThread({
           if (runningTotalBytes + prepared.sizeBytes > MAX_TOTAL_IMAGES_BYTES) {
             toast.error(
               `Total ukuran gambar melebihi batas ${formatAttachmentSize(MAX_TOTAL_IMAGES_BYTES)}.`,
+            )
+            break
+          }
+          if (
+            runningTotalBytes + prepared.sizeBytes + audioBytes >
+            MAX_TOTAL_MEDIA_BYTES
+          ) {
+            toast.error(
+              `Total ukuran lampiran melebihi batas ${formatAttachmentSize(MAX_TOTAL_MEDIA_BYTES)}.`,
             )
             break
           }
@@ -204,14 +415,16 @@ export function FinanceChatThread({
   const handleSubmit = () => {
     const trimmed = input.trim()
     if (
-      (!trimmed && attachedImages.length === 0) ||
+      (!trimmed && attachedImages.length === 0 && !attachedAudio) ||
       isLoading ||
-      isPreparingImages
+      isPreparingImages ||
+      isRecording ||
+      isFinalizingAudio
     ) {
       return
     }
 
-    if (attachedImages.length === 0) {
+    if (attachedImages.length === 0 && !attachedAudio) {
       setInput('')
       void sendMessage(trimmed)
       return
@@ -222,7 +435,7 @@ export function FinanceChatThread({
       parts.push({ type: 'text', content: trimmed })
     }
 
-    const attachments: ChatImageAttachmentMeta[] = []
+    const attachments: ChatAttachmentMeta[] = []
     for (const img of attachedImages) {
       parts.push({
         type: 'image',
@@ -240,6 +453,7 @@ export function FinanceChatThread({
         },
       })
       attachments.push({
+        kind: 'image',
         name: img.name,
         mimeType: img.mimeType,
         sizeBytes: img.sizeBytes,
@@ -248,8 +462,36 @@ export function FinanceChatThread({
       })
     }
 
+    if (attachedAudio) {
+      parts.push({
+        type: 'audio',
+        source: {
+          type: 'data',
+          value: attachedAudio.base64,
+          mimeType: attachedAudio.mimeType,
+        },
+        metadata: {
+          mimeType: attachedAudio.mimeType,
+          playbackMimeType: attachedAudio.playbackMimeType,
+          name: attachedAudio.name,
+          sizeBytes: attachedAudio.sizeBytes,
+          durationMs: attachedAudio.durationMs,
+        },
+      })
+      attachments.push({
+        kind: 'audio',
+        name: attachedAudio.name,
+        mimeType: attachedAudio.mimeType,
+        sizeBytes: attachedAudio.sizeBytes,
+        durationMs: attachedAudio.durationMs,
+      })
+    }
+
+    revokeChatAudioPreviewUrl(attachedAudioUrlRef.current)
+    attachedAudioUrlRef.current = null
     setInput('')
     setAttachedImages([])
+    setAttachedAudio(null)
     setFailedPreviewIds({})
 
     void sendMessage({
@@ -274,9 +516,9 @@ export function FinanceChatThread({
               </EmptyMedia>
               <EmptyTitle>Asisten Keuangan AI</EmptyTitle>
               <EmptyDescription>
-                Catat pemasukan dan pengeluaran lewat chat atau unggah beberapa
-                foto struk sekaligus, cek ringkasan saldo, atau ubah transaksi
-                yang tersimpan.
+                Catat pemasukan dan pengeluaran lewat chat, pesan suara, atau
+                unggah beberapa foto struk sekaligus, cek ringkasan saldo, atau
+                ubah transaksi yang tersimpan.
               </EmptyDescription>
             </EmptyHeader>
             <EmptyContent>
@@ -441,78 +683,180 @@ export function FinanceChatThread({
             isDragOver ? 'border-primary ring-2 ring-primary/30' : undefined
           }
         >
-          {attachedImages.length > 0 || isPreparingImages ? (
+          {isRecording ||
+          isFinalizingAudio ||
+          attachedAudio !== null ||
+          attachedImages.length > 0 ||
+          isPreparingImages ? (
             <InputGroupAddon
               align="block-start"
-              className="cursor-default flex-col items-stretch gap-2 border-b pb-2.5"
+              className="cursor-default flex-col items-stretch gap-2.5 border-b pb-2.5"
             >
-              <div className="flex items-center justify-between gap-2 text-xs">
-                <span className="flex items-center gap-1.5 text-muted-foreground">
-                  {isPreparingImages ? (
-                    <>
-                      <Loader2Icon className="size-3.5 animate-spin" />
-                      Memproses gambar...
-                    </>
-                  ) : (
-                    `${attachedImages.length}/${MAX_CHAT_IMAGES_PER_MESSAGE} gambar siap dikirim`
-                  )}
-                </span>
-                {attachedImages.length > 1 ? (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="xs"
-                    disabled={isLoading || isPreparingImages}
-                    onClick={handleClearImages}
-                  >
-                    Hapus semua
-                  </Button>
-                ) : null}
-              </div>
+              {isRecording || isFinalizingAudio ? (
+                <div className="flex items-center justify-between gap-2 rounded-xl border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs">
+                  <div className="flex min-w-0 items-center gap-2">
+                    {isFinalizingAudio ? (
+                      <>
+                        <Loader2Icon className="size-3.5 shrink-0 animate-spin text-destructive" />
+                        <span className="truncate font-medium">
+                          Menyiapkan rekaman...
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="size-2 shrink-0 animate-pulse rounded-full bg-destructive" />
+                        <span className="truncate font-medium">
+                          Merekam suara...
+                        </span>
+                      </>
+                    )}
+                    <span className="shrink-0 text-muted-foreground tabular-nums">
+                      {formatAudioDuration(recordingElapsedMs)} /{' '}
+                      {formatAudioDuration(MAX_AUDIO_DURATION_MS)}
+                    </span>
+                  </div>
 
-              {attachedImages.length > 0 ? (
-                <div className="flex flex-wrap gap-2">
-                  {attachedImages.map((img) => {
-                    const previewFailed = Boolean(failedPreviewIds[img.id])
-                    return (
-                      <div
-                        key={img.id}
-                        title={`${img.name} (${formatAttachmentSize(img.sizeBytes)})`}
-                        className="group relative size-16 shrink-0 overflow-hidden rounded-xl border bg-background"
+                  {isRecording ? (
+                    <div className="flex shrink-0 items-center gap-1">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="xs"
+                        disabled={isFinalizingAudio}
+                        onClick={handleCancelRecording}
                       >
-                        {previewFailed ? (
-                          <div className="flex size-full flex-col items-center justify-center gap-0.5 p-1 text-muted-foreground">
-                            <ImageIcon className="size-4" />
-                            <span className="w-full truncate text-center text-[9px]">
-                              {img.name}
-                            </span>
-                          </div>
-                        ) : (
-                          <img
-                            src={img.previewUrl}
-                            alt={img.name}
-                            className="size-full object-cover"
-                            onError={() =>
-                              setFailedPreviewIds((prev) => ({
-                                ...prev,
-                                [img.id]: true,
-                              }))
-                            }
-                          />
-                        )}
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveImage(img.id)}
-                          disabled={isLoading}
-                          aria-label={`Hapus ${img.name}`}
-                          className="absolute top-1 right-1 flex size-5 items-center justify-center rounded-full bg-background/90 text-foreground shadow-xs transition-colors hover:bg-destructive hover:text-destructive-foreground"
-                        >
-                          <XIcon className="size-3" />
-                        </button>
-                      </div>
-                    )
-                  })}
+                        <XIcon data-icon="inline-start" />
+                        Batal
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="destructive"
+                        size="xs"
+                        disabled={isFinalizingAudio}
+                        onClick={() => void handleStopRecording()}
+                      >
+                        <SquareIcon data-icon="inline-start" />
+                        Selesai
+                      </Button>
+                    </div>
+                  ) : null}
                 </div>
+              ) : attachedAudio ? (
+                <div className="flex flex-col gap-2 rounded-xl border bg-background px-3 py-2">
+                  <div className="flex items-center justify-between gap-2 text-xs">
+                    <div className="flex min-w-0 items-center gap-1.5">
+                      <MicIcon className="size-3.5 shrink-0 text-primary" />
+                      <span className="truncate font-medium">
+                        {attachedAudio.name}
+                      </span>
+                      <span className="shrink-0 text-muted-foreground tabular-nums">
+                        {formatAudioDuration(attachedAudio.durationMs)} ·{' '}
+                        {formatAttachmentSize(attachedAudio.sizeBytes)}
+                      </span>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-1">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="xs"
+                        disabled={isLoading || !canRecordAudio}
+                        onClick={() => void handleReRecordAudio()}
+                      >
+                        <RotateCcwIcon data-icon="inline-start" />
+                        Rekam ulang
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-xs"
+                        disabled={isLoading}
+                        aria-label="Hapus rekaman suara"
+                        onClick={clearAttachedAudio}
+                      >
+                        <XIcon />
+                      </Button>
+                    </div>
+                  </div>
+                  <audio
+                    controls
+                    preload="metadata"
+                    src={attachedAudio.previewUrl}
+                    className="h-8 w-full"
+                  />
+                </div>
+              ) : null}
+
+              {attachedImages.length > 0 || isPreparingImages ? (
+                <>
+                  <div className="flex items-center justify-between gap-2 text-xs">
+                    <span className="flex items-center gap-1.5 text-muted-foreground">
+                      {isPreparingImages ? (
+                        <>
+                          <Loader2Icon className="size-3.5 animate-spin" />
+                          Memproses gambar...
+                        </>
+                      ) : (
+                        `${attachedImages.length}/${MAX_CHAT_IMAGES_PER_MESSAGE} gambar siap dikirim`
+                      )}
+                    </span>
+                    {attachedImages.length > 1 ? (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="xs"
+                        disabled={isLoading || isPreparingImages}
+                        onClick={handleClearImages}
+                      >
+                        Hapus semua
+                      </Button>
+                    ) : null}
+                  </div>
+
+                  {attachedImages.length > 0 ? (
+                    <div className="flex flex-wrap gap-2">
+                      {attachedImages.map((img) => {
+                        const previewFailed = Boolean(failedPreviewIds[img.id])
+                        return (
+                          <div
+                            key={img.id}
+                            title={`${img.name} (${formatAttachmentSize(img.sizeBytes)})`}
+                            className="group relative size-16 shrink-0 overflow-hidden rounded-xl border bg-background"
+                          >
+                            {previewFailed ? (
+                              <div className="flex size-full flex-col items-center justify-center gap-0.5 p-1 text-muted-foreground">
+                                <ImageIcon className="size-4" />
+                                <span className="w-full truncate text-center text-[9px]">
+                                  {img.name}
+                                </span>
+                              </div>
+                            ) : (
+                              <img
+                                src={img.previewUrl}
+                                alt={img.name}
+                                className="size-full object-cover"
+                                onError={() =>
+                                  setFailedPreviewIds((prev) => ({
+                                    ...prev,
+                                    [img.id]: true,
+                                  }))
+                                }
+                              />
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveImage(img.id)}
+                              disabled={isLoading}
+                              aria-label={`Hapus ${img.name}`}
+                              className="absolute top-1 right-1 flex size-5 items-center justify-center rounded-full bg-background/90 text-foreground shadow-xs transition-colors hover:bg-destructive hover:text-destructive-foreground"
+                            >
+                              <XIcon className="size-3" />
+                            </button>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  ) : null}
+                </>
               ) : null}
             </InputGroupAddon>
           ) : null}
@@ -540,7 +884,7 @@ export function FinanceChatThread({
                 handleSubmit()
               }
             }}
-            placeholder="Ketik transaksi atau unggah/tempel foto struk..."
+            placeholder="Ketik transaksi, rekam suara, atau unggah foto struk..."
             rows={2}
             disabled={isLoading}
             aria-label="Pesan untuk asisten keuangan"
@@ -557,6 +901,8 @@ export function FinanceChatThread({
                 disabled={
                   isLoading ||
                   isPreparingImages ||
+                  isRecording ||
+                  isFinalizingAudio ||
                   attachedImages.length >= MAX_CHAT_IMAGES_PER_MESSAGE
                 }
                 onClick={() => fileInputRef.current?.click()}
@@ -573,14 +919,54 @@ export function FinanceChatThread({
                 disabled={
                   isLoading ||
                   isPreparingImages ||
+                  isRecording ||
+                  isFinalizingAudio ||
                   attachedImages.length >= MAX_CHAT_IMAGES_PER_MESSAGE
                 }
                 onClick={() => cameraInputRef.current?.click()}
               >
                 <CameraIcon />
               </InputGroupButton>
+              {isRecording ? (
+                <InputGroupButton
+                  type="button"
+                  variant="destructive"
+                  size="icon-sm"
+                  aria-label="Hentikan rekaman suara"
+                  title="Hentikan rekaman"
+                  disabled={isFinalizingAudio}
+                  onClick={() => void handleStopRecording()}
+                >
+                  <SquareIcon />
+                </InputGroupButton>
+              ) : (
+                <InputGroupButton
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label="Rekam pesan suara"
+                  title={
+                    !canRecordAudio
+                      ? 'Browser tidak mendukung perekaman suara'
+                      : attachedAudio
+                        ? 'Hapus rekaman saat ini untuk merekam ulang'
+                        : 'Rekam pesan suara (maks. 2 menit)'
+                  }
+                  disabled={
+                    !canRecordAudio ||
+                    isLoading ||
+                    isPreparingImages ||
+                    isFinalizingAudio ||
+                    attachedAudio !== null
+                  }
+                  onClick={() => void handleStartRecording()}
+                >
+                  <MicIcon />
+                </InputGroupButton>
+              )}
               <span className="hidden pl-1 text-xs text-muted-foreground sm:inline">
-                Enter kirim · Maks. {MAX_CHAT_IMAGES_PER_MESSAGE} foto struk
+                Enter kirim · Suara & maks. {MAX_CHAT_IMAGES_PER_MESSAGE} foto
+                struk
               </span>
             </div>
             {isLoading ? (
@@ -599,8 +985,12 @@ export function FinanceChatThread({
                 variant="default"
                 size="sm"
                 disabled={
-                  (!input.trim() && attachedImages.length === 0) ||
-                  isPreparingImages
+                  (!input.trim() &&
+                    attachedImages.length === 0 &&
+                    !attachedAudio) ||
+                  isPreparingImages ||
+                  isRecording ||
+                  isFinalizingAudio
                 }
               >
                 <SendHorizontalIcon data-icon="inline-start" />
