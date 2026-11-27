@@ -44,7 +44,7 @@ import {
   Trash2Icon,
 } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { toast } from 'sonner'
+import { toast } from '@yusufceng1z/ding-react'
 import { FinanceChatThread } from './finance-chat-thread'
 
 interface FinanceChatDrawerProps {

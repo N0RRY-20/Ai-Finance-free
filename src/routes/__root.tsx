@@ -3,7 +3,7 @@ import { TanStackRouterDevtoolsPanel } from '@tanstack/react-router-devtools'
 import { TanStackDevtools } from '@tanstack/react-devtools'
 import { RootErrorComponent } from '#/components/common/route-error-fallback'
 import { ThemeProvider } from '#/components/providers/theme-provider'
-import { Toaster } from '#/components/ui/sonner'
+import { DingToaster } from '#/components/ui/ding-toaster'
 import { TooltipProvider } from '#/components/ui/tooltip'
 
 import appCss from '../styles.css?url'
@@ -85,7 +85,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
       <body>
         <ThemeProvider defaultTheme="system" storageKey="theme">
           <TooltipProvider>{children}</TooltipProvider>
-          <Toaster />
+          <DingToaster position="top-center" sound />
         </ThemeProvider>
         <TanStackDevtools
           config={{
