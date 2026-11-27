@@ -42,7 +42,7 @@ function OfflinePage() {
             Coba Muat Ulang
           </Button>
           <Button variant="outline" asChild className="cursor-pointer">
-            <Link to="/">
+            <Link to="/" reloadDocument>
               <Home data-icon="inline-start" />
               Kembali ke Beranda
             </Link>
