@@ -371,3 +371,10 @@ a {
     @apply font-sans;
   }
 }
+
+:root .tst-viewport {
+  font-family: var(--font-sans);
+  --tst-bg: var(--popover);
+  --tst-fg: var(--popover-foreground);
+  --tst-ring: var(--border);
+}

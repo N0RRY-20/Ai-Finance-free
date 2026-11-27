@@ -73,7 +73,7 @@ import {
   XIcon,
 } from 'lucide-react'
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
-import { toast } from 'sonner'
+import { toast } from '@yusufceng1z/ding-react'
 import { ChatMessageParts } from './chat-message-parts'
 
 const MUTATING_TOOL_NAMES = new Set([

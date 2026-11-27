@@ -41,7 +41,7 @@ import type { GeminiChatModelId, UserAiKeyStatus } from '#/types/ai'
 import { createSaveAiKeyFormSchema } from '#/validations/ai-key.validation'
 import { EyeIcon, EyeOffIcon, KeyRoundIcon, Trash2Icon } from 'lucide-react'
 import { useEffect, useId, useState } from 'react'
-import { toast } from 'sonner'
+import { toast } from '@yusufceng1z/ding-react'
 
 interface AiKeySettingsFormProps {
   status: UserAiKeyStatus

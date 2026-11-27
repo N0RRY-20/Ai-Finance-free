@@ -14,7 +14,7 @@ import { Spinner } from '#/components/ui/spinner'
 import { deleteTransactionFn } from '#/server/transaction.functions'
 import type { SerializedTransaction } from '#/types/finance'
 import { formatDateId } from '#/utils/format'
-import { toast } from 'sonner'
+import { toast } from '@yusufceng1z/ding-react'
 
 interface DeleteTransactionDialogProps {
   transaction: SerializedTransaction | null

@@ -50,7 +50,7 @@ import type {
 import { getTodayLocalDate } from '#/utils/format'
 import { createTransactionInputSchema } from '#/validations/transaction.validation'
 import { AlertCircle } from 'lucide-react'
-import { toast } from 'sonner'
+import { toast } from '@yusufceng1z/ding-react'
 
 interface TransactionFormDialogProps {
   open: boolean

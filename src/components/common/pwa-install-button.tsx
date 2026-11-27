@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Download, MonitorSmartphone, Share } from 'lucide-react'
-import { toast } from 'sonner'
+import { toast } from '@yusufceng1z/ding-react'
 import { Button } from '#/components/ui/button'
 import {
   Dialog,
