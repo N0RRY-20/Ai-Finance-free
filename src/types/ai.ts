@@ -67,13 +67,27 @@ export interface RecordAiUsageInput {
 
 export type ConversationIdInput = z.infer<typeof conversationIdParamSchema>
 
+export type ChatAttachmentKind = 'image' | 'audio'
+
 export interface ChatImageAttachmentMeta {
+  kind?: 'image'
   name: string
   mimeType: string
   sizeBytes: number
   width?: number
   height?: number
 }
+
+export interface ChatAudioAttachmentMeta {
+  kind: 'audio'
+  name: string
+  mimeType: string
+  sizeBytes: number
+  durationMs?: number
+}
+
+export type ChatAttachmentMeta =
+  ChatImageAttachmentMeta | ChatAudioAttachmentMeta
 
 export interface DeleteResult {
   deleted: boolean

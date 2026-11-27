@@ -19,14 +19,24 @@ import {
   TraceLine,
   TraceTitle,
 } from '#/components/ui/trace'
-import { formatAttachmentSize } from '#/constants/chat-media'
-import type { ChatImageAttachmentMeta } from '#/types/ai'
+import {
+  formatAttachmentSize,
+  formatAudioDuration,
+  getChatAttachmentKind,
+  resolveAudioPlaybackMimeType,
+} from '#/constants/chat-media'
+import type {
+  ChatAttachmentMeta,
+  ChatAudioAttachmentMeta,
+  ChatImageAttachmentMeta,
+} from '#/types/ai'
 import type { UIMessage } from '@tanstack/ai-react'
 import type { LucideIcon } from 'lucide-react'
 import {
   BrainIcon,
   ImageIcon,
   ListFilterIcon,
+  MicIcon,
   PencilIcon,
   PieChartIcon,
   ReceiptTextIcon,
@@ -45,6 +55,14 @@ interface LiveImageItem {
   src: string
   name: string
   sizeBytes?: number
+}
+
+interface LiveAudioItem {
+  id: string
+  src: string
+  name: string
+  sizeBytes?: number
+  durationMs?: number
 }
 
 interface ToolMeta {
@@ -213,7 +231,7 @@ function ToolCallTraceItem({ part }: { part: ToolCallMessagePart }) {
   )
 }
 
-function getMessageAttachments(message: UIMessage): ChatImageAttachmentMeta[] {
+function getMessageAttachments(message: UIMessage): ChatAttachmentMeta[] {
   if (
     !isRecord(message.metadata) ||
     !Array.isArray(message.metadata.attachments)
@@ -221,7 +239,7 @@ function getMessageAttachments(message: UIMessage): ChatImageAttachmentMeta[] {
     return []
   }
 
-  const parsed: ChatImageAttachmentMeta[] = []
+  const parsed: ChatAttachmentMeta[] = []
   for (const item of message.metadata.attachments) {
     if (!isRecord(item)) continue
     if (
@@ -233,7 +251,29 @@ function getMessageAttachments(message: UIMessage): ChatImageAttachmentMeta[] {
     ) {
       continue
     }
+
+    const kind = getChatAttachmentKind({
+      kind: item.kind,
+      mimeType: item.mimeType,
+    })
+
+    if (kind === 'audio') {
+      parsed.push({
+        kind: 'audio',
+        name: item.name,
+        mimeType: item.mimeType,
+        sizeBytes: item.sizeBytes,
+        ...(typeof item.durationMs === 'number' &&
+        Number.isFinite(item.durationMs) &&
+        item.durationMs > 0
+          ? { durationMs: item.durationMs }
+          : {}),
+      })
+      continue
+    }
+
     parsed.push({
+      kind: 'image',
       name: item.name,
       mimeType: item.mimeType,
       sizeBytes: item.sizeBytes,
@@ -251,7 +291,7 @@ function getMessageAttachments(message: UIMessage): ChatImageAttachmentMeta[] {
 
 function buildLiveImages(
   parts: UIMessage['parts'],
-  savedAttachments: ChatImageAttachmentMeta[],
+  savedImages: ChatImageAttachmentMeta[],
 ): LiveImageItem[] {
   const images: LiveImageItem[] = []
   let imgIndex = 0
@@ -268,7 +308,7 @@ function buildLiveImages(
         ? part.source.value
         : `data:${part.source.mimeType};base64,${part.source.value}`
     const partMeta = isRecord(part.metadata) ? part.metadata : undefined
-    const saved = savedAttachments.at(imgIndex)
+    const saved = savedImages.at(imgIndex)
     const name =
       typeof partMeta?.name === 'string' && partMeta.name.trim()
         ? partMeta.name.trim()
@@ -289,6 +329,102 @@ function buildLiveImages(
   }
 
   return images
+}
+
+function buildLiveAudios(
+  parts: UIMessage['parts'],
+  savedAudios: ChatAudioAttachmentMeta[],
+): LiveAudioItem[] {
+  const audios: LiveAudioItem[] = []
+  let audioIndex = 0
+
+  for (const part of parts) {
+    if (part.type !== 'audio') continue
+    if (part.source.type === 'file') {
+      audioIndex += 1
+      continue
+    }
+
+    const partMeta = isRecord(part.metadata) ? part.metadata : undefined
+    const saved = savedAudios.at(audioIndex)
+    const playbackMimeType = resolveAudioPlaybackMimeType(
+      part.source.type === 'data'
+        ? part.source.mimeType
+        : (part.source.mimeType ?? 'audio/webm'),
+      typeof partMeta?.playbackMimeType === 'string'
+        ? partMeta.playbackMimeType
+        : undefined,
+    )
+    const src =
+      part.source.type === 'url'
+        ? part.source.value
+        : `data:${playbackMimeType};base64,${part.source.value}`
+    const name =
+      typeof partMeta?.name === 'string' && partMeta.name.trim()
+        ? partMeta.name.trim()
+        : (saved?.name ?? 'Pesan suara')
+    const sizeBytes =
+      typeof partMeta?.sizeBytes === 'number' &&
+      Number.isFinite(partMeta.sizeBytes)
+        ? partMeta.sizeBytes
+        : saved?.sizeBytes
+    const durationMs =
+      typeof partMeta?.durationMs === 'number' &&
+      Number.isFinite(partMeta.durationMs) &&
+      partMeta.durationMs > 0
+        ? partMeta.durationMs
+        : saved?.durationMs
+
+    audios.push({
+      id: `live-audio-${audioIndex}`,
+      src,
+      name,
+      sizeBytes,
+      durationMs,
+    })
+    audioIndex += 1
+  }
+
+  return audios
+}
+
+function LiveAudioCard({ item }: { item: LiveAudioItem }) {
+  const [hasError, setHasError] = useState(false)
+
+  return (
+    <div className="flex w-72 max-w-[85%] flex-col gap-2 rounded-2xl border bg-muted/40 p-2.5">
+      <div className="flex items-center justify-between gap-2 text-xs">
+        <span className="flex min-w-0 items-center gap-1.5 font-medium">
+          <MicIcon className="size-3.5 shrink-0 text-primary" />
+          <span className="truncate">{item.name}</span>
+        </span>
+        <span className="shrink-0 text-[11px] text-muted-foreground tabular-nums">
+          {item.durationMs !== undefined
+            ? formatAudioDuration(item.durationMs)
+            : null}
+          {item.durationMs !== undefined && item.sizeBytes !== undefined
+            ? ' · '
+            : null}
+          {item.sizeBytes !== undefined
+            ? formatAttachmentSize(item.sizeBytes)
+            : null}
+        </span>
+      </div>
+      {hasError ? (
+        <p className="text-[11px] text-muted-foreground">
+          Audio tidak dapat diputar di browser ini
+        </p>
+      ) : (
+        <audio
+          controls
+          preload="metadata"
+          src={item.src}
+          className="h-8 w-full"
+          onError={() => setHasError(true)}
+        />
+      )}
+    </div>
+  )
 }
 
 function LiveImageCard({
@@ -347,7 +483,16 @@ export function ChatMessageParts({
   const [previewImage, setPreviewImage] = useState<LiveImageItem | null>(null)
   const isUser = message.role === 'user'
   const savedAttachments = getMessageAttachments(message)
-  const liveImages = buildLiveImages(message.parts, savedAttachments)
+  const savedImages = savedAttachments.filter(
+    (att): att is ChatImageAttachmentMeta =>
+      getChatAttachmentKind(att) === 'image',
+  )
+  const savedAudios = savedAttachments.filter(
+    (att): att is ChatAudioAttachmentMeta =>
+      getChatAttachmentKind(att) === 'audio',
+  )
+  const liveImages = buildLiveImages(message.parts, savedImages)
+  const liveAudios = buildLiveAudios(message.parts, savedAudios)
 
   if (
     message.parts.length === 0 &&
@@ -384,6 +529,7 @@ export function ChatMessageParts({
   if (
     groups.length === 0 &&
     liveImages.length === 0 &&
+    liveAudios.length === 0 &&
     savedAttachments.length === 0 &&
     isStreaming &&
     !isUser
@@ -394,6 +540,15 @@ export function ChatMessageParts({
       </span>
     )
   }
+
+  const fallbackImages = liveImages.length === 0 ? savedImages : []
+  const fallbackAudios = liveAudios.length === 0 ? savedAudios : []
+  const historyNote =
+    fallbackImages.length > 0 && fallbackAudios.length > 0
+      ? 'Lampiran media tidak disimpan di riwayat'
+      : fallbackAudios.length > 0
+        ? 'Rekaman suara tidak disimpan di riwayat'
+        : 'Lampiran gambar tidak disimpan di riwayat'
 
   return (
     <div className="flex min-w-0 flex-col gap-2">
@@ -413,16 +568,28 @@ export function ChatMessageParts({
             />
           ))}
         </div>
-      ) : savedAttachments.length > 0 ? (
+      ) : null}
+
+      {liveAudios.length > 0 ? (
+        <div
+          className={`flex max-w-full flex-col gap-2 ${isUser ? 'items-end self-end' : 'items-start self-start'}`}
+        >
+          {liveAudios.map((item) => (
+            <LiveAudioCard key={item.id} item={item} />
+          ))}
+        </div>
+      ) : null}
+
+      {fallbackImages.length > 0 || fallbackAudios.length > 0 ? (
         <div
           className={`flex max-w-[85%] flex-col gap-1.5 ${isUser ? 'items-end self-end' : 'items-start self-start'}`}
         >
           <div
             className={`flex flex-wrap gap-1.5 ${isUser ? 'justify-end' : 'justify-start'}`}
           >
-            {savedAttachments.map((att, index) => (
+            {fallbackImages.map((att, index) => (
               <Badge
-                key={`${att.name}-${index}`}
+                key={`img-${att.name}-${index}`}
                 variant="secondary"
                 className="h-auto max-w-full gap-1.5 py-1 pr-2.5 pl-2"
               >
@@ -433,10 +600,25 @@ export function ChatMessageParts({
                 </span>
               </Badge>
             ))}
+            {fallbackAudios.map((att, index) => (
+              <Badge
+                key={`audio-${att.name}-${index}`}
+                variant="secondary"
+                className="h-auto max-w-full gap-1.5 py-1 pr-2.5 pl-2"
+              >
+                <MicIcon className="shrink-0" />
+                <span className="max-w-44 truncate">{att.name}</span>
+                <span className="shrink-0 text-muted-foreground tabular-nums">
+                  (
+                  {att.durationMs !== undefined
+                    ? `${formatAudioDuration(att.durationMs)} · `
+                    : null}
+                  {formatAttachmentSize(att.sizeBytes)})
+                </span>
+              </Badge>
+            ))}
           </div>
-          <p className="text-[11px] text-muted-foreground">
-            Lampiran gambar tidak disimpan di riwayat
-          </p>
+          <p className="text-[11px] text-muted-foreground">{historyNote}</p>
         </div>
       ) : null}
 

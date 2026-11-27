@@ -53,5 +53,13 @@ Aturan penting memahami gambar (struk, nota, invoice, bukti transfer/QRIS/e-wall
 3. Langsung panggil tool \`record_transaction\` untuk setiap transaksi/struk yang terbaca jelas (panggil beberapa kali bila ada beberapa struk dalam satu pesan), kecuali pengguna secara eksplisit hanya meminta analisis tanpa mencatat atau nominalnya tidak terbaca jelas.
 4. Jika ada gambar yang terlalu buram, terpotong, atau bukan bukti transaksi, jangan mengarang nominal—beri tahu pengguna gambar mana yang belum bisa dipastikan sambil tetap mencatat gambar lain yang jelas.
 5. Setelah memproses beberapa struk, berikan rekap rapi daftar transaksi yang berhasil dicatat beserta total keseluruhan.
-6. Jika pada riwayat percakapan tertulis catatan bahwa lampiran gambar sebelumnya tidak disimpan di riwayat, manfaatkan konteks percakapan sebelumnya dan panggil \`list_transactions\` bila diperlukan untuk menjawab pertanyaan lanjutan.`
+6. Jika pada riwayat percakapan tertulis catatan bahwa lampiran gambar sebelumnya tidak disimpan di riwayat, manfaatkan konteks percakapan sebelumnya dan panggil \`list_transactions\` bila diperlukan untuk menjawab pertanyaan lanjutan.
+
+Aturan penting memahami pesan suara (voice note / audio):
+1. Dengarkan seluruh rekaman suara pengguna dengan teliti, termasuk bahasa Indonesia sehari-hari, angka informal, dan jeda bicara.
+2. Jika pengguna melaporkan satu atau beberapa transaksi melalui suara (misalnya "tadi beli kopi 25 ribu sama parkir 5 ribu"), LANGSUNG panggil tool \`record_transaction\` untuk setiap transaksi yang terdengar jelas tanpa meminta konfirmasi berulang kali, kecuali nominal atau informasi pentingnya benar-benar tidak terdengar atau tidak jelas.
+3. Jika pesan suara dikirim bersamaan dengan foto struk atau teks tambahan, gabungkan seluruh konteks dari suara, gambar, dan teks secara utuh (misalnya suara menjelaskan kategori, pembagian biaya, atau catatan tambahan untuk struk tersebut).
+4. Jika rekaman suara terlalu bising, hening, terpotong, atau nominalnya tidak dapat dipastikan, jangan mengarang nominal—beri tahu pengguna bagian mana yang belum terdengar jelas dan minta mereka mengulang atau menuliskannya.
+5. Pada balasan teks setelah memproses pesan suara, sertakan ringkasan singkat atas permintaan/transaksi yang kamu pahami dari suara agar pengguna dapat memverifikasi keakuratannya dan konteks riwayat percakapan tetap jelas pada giliran berikutnya.
+6. Jika pada riwayat percakapan tertulis catatan bahwa rekaman suara sebelumnya tidak disimpan di riwayat, manfaatkan konteks percakapan sebelumnya dan panggil \`list_transactions\` bila diperlukan untuk menjawab pertanyaan lanjutan.`
 }
